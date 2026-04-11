@@ -251,9 +251,9 @@
 <div class="copyright-bar">&copy; 2026 Asociaci&oacute;n Merlin Data Technology &mdash; Todos los derechos reservados</div>
 
 <script>
-const SUPABASE_URL = 'SUPABASE_URL_PLACEHOLDER';
-const SUPABASE_KEY = 'SUPABASE_KEY_PLACEHOLDER';
-const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const SUPABASE_URL = 'https://uceswdscummpokmquecs.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjZXN3ZHNjdW1tcG9rbXF1ZWNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NjQyNzEsImV4cCI6MjA5MTM0MDI3MX0.omidUnKS78E78sng3U0ozEUme3ARWcUDWlKSm59zvzQ';
+let db;
 
 let selectedEvent = null, isAnon = true;
 
@@ -268,7 +268,10 @@ async function loadEvents(){
   sel.innerHTML = '<option value="">— Selecciona un evento —</option>' +
     data.map(e => `<option value="${e.id}" data-nombre="${e.nombre}" data-fecha="${e.fecha||''}" data-lugar="${e.lugar||''}">${e.nombre}${e.fecha?' · '+e.fecha:''}</option>`).join('');
 }
-loadEvents();
+document.addEventListener('DOMContentLoaded', () => {
+  db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  loadEvents();
+});
 
 function onEventSelect(){
   const sel = document.getElementById('event-select');
