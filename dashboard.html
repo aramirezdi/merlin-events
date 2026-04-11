@@ -422,6 +422,22 @@ async function deleteFeedback(id){
 }
 
 function printDash(){
+  const eid = document.getElementById('event-select').value;
+  if(!eid){ alert('Selecciona un evento primero.'); return; }
+  const eventLabel = document.getElementById('event-select').selectedOptions[0]?.text || '';
+  const dashContent = document.getElementById('dash-area').innerHTML;
+  const tabLabel = currentTab === 'asistencia' ? 'Reporte de Asistencia' : 'Resultados de Encuesta';
+  document.getElementById('print-area').innerHTML = `
+    <div style="text-align:center;margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:2px solid #1a5fa5">
+      <svg width="110" height="28" viewBox="0 0 140 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <text x="0" y="28" font-family="Inter,Arial,sans-serif" font-size="30" font-weight="800" fill="#1a5fa5" letter-spacing="-1">merlin</text>
+        <circle cx="133" cy="22" r="5" fill="#e9721f"/>
+      </svg>
+      <div style="font-size:1rem;font-weight:700;color:#1a5fa5;margin-top:.4rem">${tabLabel}</div>
+      <div style="font-size:.85rem;color:#555;margin-top:.2rem">${eventLabel}</div>
+      <div style="font-size:.75rem;color:#888;margin-top:.2rem">Generado el ${new Date().toLocaleString('es-CO')}</div>
+    </div>
+    ${dashContent}`;
   window.print();
 }
 </script>
