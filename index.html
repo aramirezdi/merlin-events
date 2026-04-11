@@ -377,8 +377,8 @@
 
 <script>
 const PASSWORD    = 'merlin2026';
-const SUPABASE_URL = 'SUPABASE_URL_PLACEHOLDER';
-const SUPABASE_KEY = 'SUPABASE_KEY_PLACEHOLDER';
+const SUPABASE_URL = 'https://uceswdscummpokmquecs.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjZXN3ZHNjdW1tcG9rbXF1ZWNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NjQyNzEsImV4cCI6MjA5MTM0MDI3MX0.omidUnKS78E78sng3U0ozEUme3ARWcUDWlKSm59zvzQ';
 
 let db, currentEvent = null, participants = [], editingId = null;
 
@@ -409,7 +409,8 @@ function switchTab(tab){
 
 /* ── EVENTS ── */
 async function loadEvents(){
-  const { data } = await db.from('events').select('*').order('created_at',{ascending:false});
+  const { data, error } = await db.from('events').select('*').order('created_at',{ascending:false});
+  if(error){ document.getElementById('events-list').innerHTML='<div class="empty-state" style="color:var(--red)">Error Supabase: '+error.message+'</div>'; return; }
   renderEvents(data || []);
 }
 
@@ -438,7 +439,7 @@ async function createEvent(){
     lugar:       document.getElementById('ev-lugar').value.trim() || null,
     descripcion: document.getElementById('ev-desc').value.trim() || null,
   }]);
-  if(error){ document.getElementById('ev-err').textContent='Error: '+error.message; return; }
+  if(error){ alert('Error al crear evento: '+error.message); document.getElementById('ev-err').textContent='Error: '+error.message; return; }
   document.getElementById('ev-nombre').value = '';
   document.getElementById('ev-fecha').value  = '';
   document.getElementById('ev-lugar').value  = '';
