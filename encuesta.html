@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Encuesta – Merlin Events</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+    :root {
+      --blue:#1a5fa5; --blue2:#14508e; --blue3:#0f3d6e;
+      --orange:#e9721f; --white:#ffffff; --off:#f0f5fb;
+      --muted:#7a98bb; --text:#1a2a3a; --border:#c5d8ee;
+      --green:#1a9a4a; --red:#d93025; --gold:#f5a623;
+    }
+    html { scroll-behavior:smooth; }
+    body {
+      background:linear-gradient(160deg, var(--blue3) 0%, var(--blue) 50%, #2272c3 100%);
+      min-height:100vh; font-family:'Inter',sans-serif; color:var(--text);
+      padding:2rem 1rem 4rem;
+    }
+
+    .wrap { max-width:620px; margin:0 auto; }
+
+    /* HEADER */
+    .header { text-align:center; margin-bottom:2rem; }
+    .header svg { margin-bottom:1rem; }
+    .header h1 { font-size:clamp(1.3rem,4vw,1.8rem); font-weight:800; color:#fff; }
+    .header p  { color:rgba(255,255,255,.75); font-size:.9rem; margin-top:.4rem; }
+
+    /* SELECT EVENTO */
+    #s-select { margin-bottom:2rem; }
+    .event-select-card {
+      background:var(--white); border-radius:14px; padding:1.5rem;
+      box-shadow:0 8px 32px rgba(0,0,0,.18);
+    }
+    .event-select-card h3 { font-size:.9rem; font-weight:700; color:var(--blue); margin-bottom:.85rem; }
+    .event-select-card select, .event-select-card input {
+      width:100%; border:1.5px solid var(--border); border-radius:8px;
+      padding:.65rem .9rem; font-size:.92rem; font-family:'Inter',sans-serif;
+      color:var(--text); outline:none; transition:border-color .2s; margin-bottom:.75rem;
+    }
+    .event-select-card select:focus, .event-select-card input:focus { border-color:var(--blue); }
+
+    /* IDENTITY */
+    .anon-toggle { display:flex; gap:.75rem; margin-bottom:1rem; }
+    .anon-opt { flex:1; padding:.65rem; border:1.5px solid var(--border); border-radius:8px; text-align:center; cursor:pointer; font-size:.85rem; font-weight:600; color:var(--muted); transition:all .2s; }
+    .anon-opt.active { border-color:var(--blue); background:#eaf2ff; color:var(--blue); }
+
+    /* CARD */
+    .card {
+      background:var(--white); border-radius:14px; padding:1.5rem;
+      margin-bottom:1rem; box-shadow:0 4px 16px rgba(0,0,0,.1);
+    }
+    .card h3 { font-size:.75rem; font-weight:700; color:var(--blue); letter-spacing:.1em; text-transform:uppercase; margin-bottom:1rem; }
+    .q-label { font-size:.95rem; font-weight:600; color:var(--text); margin-bottom:.85rem; line-height:1.4; }
+    .q-label span { color:var(--orange); }
+
+    /* STARS */
+    .stars-group { margin-bottom:.5rem; }
+    .stars-group label { font-size:.78rem; font-weight:600; color:var(--muted); display:block; margin-bottom:.4rem; }
+    .stars { display:flex; gap:.3rem; flex-direction:row-reverse; justify-content:flex-end; margin-bottom:.75rem; }
+    .stars input { display:none; }
+    .stars label {
+      font-size:1.8rem; cursor:pointer; color:#ddd; transition:color .15s,transform .15s;
+    }
+    .stars label:hover,
+    .stars label:hover ~ label,
+    .stars input:checked ~ label { color:var(--gold); }
+    .stars label:hover { transform:scale(1.15); }
+
+    /* PILLS */
+    .pill-group { display:flex; flex-wrap:wrap; gap:.5rem; }
+    .pill-group input { display:none; }
+    .pill-group label {
+      padding:.45rem 1rem; border-radius:99px; border:1.5px solid var(--border);
+      color:var(--muted); font-size:.85rem; font-weight:500; cursor:pointer; transition:all .2s;
+    }
+    .pill-group input:checked + label { background:var(--blue); color:#fff; border-color:var(--blue); }
+    .pill-group label:hover { border-color:var(--blue); color:var(--blue); }
+
+    /* TEXTAREA */
+    textarea {
+      width:100%; border:1.5px solid var(--border); border-radius:8px;
+      padding:.7rem .9rem; font-size:.92rem; font-family:'Inter',sans-serif;
+      color:var(--text); outline:none; resize:vertical; min-height:80px;
+      line-height:1.5; transition:border-color .2s;
+    }
+    textarea:focus { border-color:var(--blue); }
+
+    /* SUBMIT */
+    .btn-submit {
+      width:100%; padding:1rem; border:none; border-radius:10px;
+      background:var(--orange); color:#fff;
+      font-family:'Inter',sans-serif; font-size:1rem; font-weight:700;
+      cursor:pointer; transition:opacity .2s; margin-top:.5rem;
+      box-shadow:0 4px 16px rgba(233,114,31,.4);
+    }
+    .btn-submit:hover { opacity:.88; }
+    .btn-submit:disabled { opacity:.4; cursor:not-allowed; }
+    .form-err { color:var(--red); font-size:.83rem; margin-top:.5rem; text-align:center; min-height:1rem; }
+
+    /* THANKS */
+    #s-thanks { display:none; }
+    .thanks-card {
+      background:var(--white); border-radius:18px; padding:3rem 2rem;
+      text-align:center; box-shadow:0 8px 32px rgba(0,0,0,.18);
+    }
+    .thanks-card .icon { font-size:3.5rem; margin-bottom:1rem; }
+    .thanks-card h2 { font-size:1.3rem; font-weight:800; color:var(--green); margin-bottom:.6rem; }
+    .thanks-card p { color:var(--muted); font-size:.92rem; line-height:1.6; }
+
+    .copyright-bar {
+      text-align:center; font-size:.68rem; color:rgba(255,255,255,.6);
+      padding:1rem; letter-spacing:.05em; margin-top:1rem;
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="header">
+    <svg width="130" height="32" viewBox="0 0 140 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <text x="0" y="28" font-family="Inter,Arial,sans-serif" font-size="30" font-weight="800" fill="#ffffff" letter-spacing="-1">merlin</text>
+      <circle cx="133" cy="22" r="5" fill="#e9721f"/>
+    </svg>
+    <h1>Encuesta de Satisfacci&oacute;n</h1>
+    <p>Tu opini&oacute;n nos ayuda a mejorar. &iexcl;Solo toma 2 minutos!</p>
+  </div>
+
+  <!-- SELECCIÓN DE EVENTO -->
+  <div id="s-select">
+    <div class="event-select-card">
+      <h3>&#128197; Selecciona el evento</h3>
+      <select id="event-select" onchange="onEventSelect()">
+        <option value="">— Cargando eventos... —</option>
+      </select>
+
+      <h3 style="margin-top:.5rem">&#128100; ¿C&oacute;mo quieres responder?</h3>
+      <div class="anon-toggle">
+        <div class="anon-opt active" id="opt-anon" onclick="setAnon(true)">&#128274; An&oacute;nimo</div>
+        <div class="anon-opt"        id="opt-name" onclick="setAnon(false)">&#128100; Con mi nombre</div>
+      </div>
+      <div id="name-fields" style="display:none">
+        <input type="text" id="resp-nombre" placeholder="Nombre completo (opcional)">
+      </div>
+      <button class="btn-submit" style="margin-top:.25rem;font-size:.88rem;padding:.65rem" onclick="startSurvey()">Continuar &#8594;</button>
+    </div>
+  </div>
+
+  <!-- FORMULARIO -->
+  <div id="s-form" style="display:none">
+    <div class="card" id="selected-event-info" style="background:var(--blue);color:#fff;padding:1rem 1.25rem">
+      <div style="font-weight:700;font-size:1rem" id="sel-ev-name"></div>
+      <div style="font-size:.8rem;opacity:.8;margin-top:.2rem" id="sel-ev-sub"></div>
+    </div>
+
+    <!-- Rating general -->
+    <div class="card">
+      <h3>&#11088; Experiencia general</h3>
+      <p class="q-label">¿C&oacute;mo calificar&iacute;as el evento en general? <span>*</span></p>
+      <div class="stars">
+        <input type="radio" name="r-general" id="rg5" value="5"><label for="rg5">&#9733;</label>
+        <input type="radio" name="r-general" id="rg4" value="4"><label for="rg4">&#9733;</label>
+        <input type="radio" name="r-general" id="rg3" value="3"><label for="rg3">&#9733;</label>
+        <input type="radio" name="r-general" id="rg2" value="2"><label for="rg2">&#9733;</label>
+        <input type="radio" name="r-general" id="rg1" value="1"><label for="rg1">&#9733;</label>
+      </div>
+    </div>
+
+    <!-- Expositor -->
+    <div class="card">
+      <h3>&#127908; El expositor</h3>
+      <p class="q-label">¿C&oacute;mo calificar&iacute;as al expositor o facilitador?</p>
+      <div class="stars">
+        <input type="radio" name="r-expositor" id="re5" value="5"><label for="re5">&#9733;</label>
+        <input type="radio" name="r-expositor" id="re4" value="4"><label for="re4">&#9733;</label>
+        <input type="radio" name="r-expositor" id="re3" value="3"><label for="re3">&#9733;</label>
+        <input type="radio" name="r-expositor" id="re2" value="2"><label for="re2">&#9733;</label>
+        <input type="radio" name="r-expositor" id="re1" value="1"><label for="re1">&#9733;</label>
+      </div>
+    </div>
+
+    <!-- Tema -->
+    <div class="card">
+      <h3>&#128218; El tema</h3>
+      <p class="q-label">¿El tema tratado fue relevante y &uacute;til para ti?</p>
+      <div class="stars">
+        <input type="radio" name="r-tema" id="rt5" value="5"><label for="rt5">&#9733;</label>
+        <input type="radio" name="r-tema" id="rt4" value="4"><label for="rt4">&#9733;</label>
+        <input type="radio" name="r-tema" id="rt3" value="3"><label for="rt3">&#9733;</label>
+        <input type="radio" name="r-tema" id="rt2" value="2"><label for="rt2">&#9733;</label>
+        <input type="radio" name="r-tema" id="rt1" value="1"><label for="rt1">&#9733;</label>
+      </div>
+    </div>
+
+    <!-- Desarrollo -->
+    <div class="card">
+      <h3>&#127775; Desarrollo del evento</h3>
+      <p class="q-label">¿C&oacute;mo estuvo la organizaci&oacute;n y el desarrollo general del evento?</p>
+      <div class="pill-group">
+        <input type="radio" name="desarrollo" id="des1" value="Excelente"><label for="des1">&#127881; Excelente</label>
+        <input type="radio" name="desarrollo" id="des2" value="Muy bueno"><label for="des2">&#128077; Muy bueno</label>
+        <input type="radio" name="desarrollo" id="des3" value="Bueno"><label for="des3">&#128522; Bueno</label>
+        <input type="radio" name="desarrollo" id="des4" value="Regular"><label for="des4">&#128528; Regular</label>
+        <input type="radio" name="desarrollo" id="des5" value="Mejorable"><label for="des5">&#128078; Mejorable</label>
+      </div>
+    </div>
+
+    <!-- Lo mejor -->
+    <div class="card">
+      <h3>&#128077; Lo mejor</h3>
+      <p class="q-label">¿Qu&eacute; fue lo que m&aacute;s te gust&oacute; del evento?</p>
+      <textarea id="q-mejor" placeholder="Cuéntanos qué disfrutaste más..."></textarea>
+    </div>
+
+    <!-- Sugerencias -->
+    <div class="card">
+      <h3>&#128161; Sugerencias</h3>
+      <p class="q-label">¿Qu&eacute; mejorar&iacute;as para la pr&oacute;xima edici&oacute;n?</p>
+      <textarea id="q-sugerencias" placeholder="Tus ideas son bienvenidas..."></textarea>
+    </div>
+
+    <!-- Recomendar -->
+    <div class="card">
+      <h3>&#128226; Recomendaci&oacute;n</h3>
+      <p class="q-label">¿Recomendar&iacute;as este evento de Merlin a otras personas?</p>
+      <div class="pill-group">
+        <input type="radio" name="recomendar" id="rec1" value="Sí, definitivamente"><label for="rec1">&#10003; S&iacute;, definitivamente</label>
+        <input type="radio" name="recomendar" id="rec2" value="Tal vez"><label for="rec2">&#128528; Tal vez</label>
+        <input type="radio" name="recomendar" id="rec3" value="No"><label for="rec3">&#10007; No</label>
+      </div>
+    </div>
+
+    <button class="btn-submit" id="btn-submit" onclick="submitFeedback()">&#9658; Enviar respuestas</button>
+    <div class="form-err" id="form-err"></div>
+  </div>
+
+  <!-- GRACIAS -->
+  <div id="s-thanks">
+    <div class="thanks-card">
+      <div class="icon">&#127881;</div>
+      <h2>&#10003; ¡Gracias por tu feedback!</h2>
+      <p>Tu opini&oacute;n es muy valiosa para Merlin.<br>Nos ayuda a mejorar nuestros eventos y programas.</p>
+    </div>
+  </div>
+
+</div>
+
+<div class="copyright-bar">&copy; 2026 Asociaci&oacute;n Merlin Data Technology &mdash; Todos los derechos reservados</div>
+
+<script>
+const SUPABASE_URL = 'SUPABASE_URL_PLACEHOLDER';
+const SUPABASE_KEY = 'SUPABASE_KEY_PLACEHOLDER';
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let selectedEvent = null, isAnon = true;
+
+/* Cargar eventos */
+async function loadEvents(){
+  const { data } = await db.from('events').select('*').order('created_at',{ascending:false});
+  const sel = document.getElementById('event-select');
+  if(!data?.length){
+    sel.innerHTML = '<option value="">— No hay eventos disponibles —</option>';
+    return;
+  }
+  sel.innerHTML = '<option value="">— Selecciona un evento —</option>' +
+    data.map(e => `<option value="${e.id}" data-nombre="${e.nombre}" data-fecha="${e.fecha||''}" data-lugar="${e.lugar||''}">${e.nombre}${e.fecha?' · '+e.fecha:''}</option>`).join('');
+}
+loadEvents();
+
+function onEventSelect(){
+  const sel = document.getElementById('event-select');
+  const opt = sel.options[sel.selectedIndex];
+  if(!opt.value) return;
+  selectedEvent = { id: opt.value, nombre: opt.dataset.nombre, fecha: opt.dataset.fecha, lugar: opt.dataset.lugar };
+}
+
+function setAnon(val){
+  isAnon = val;
+  document.getElementById('opt-anon').classList.toggle('active', val);
+  document.getElementById('opt-name').classList.toggle('active', !val);
+  document.getElementById('name-fields').style.display = val ? 'none' : 'block';
+}
+
+function startSurvey(){
+  if(!selectedEvent){ alert('Selecciona un evento primero.'); return; }
+  document.getElementById('s-select').style.display = 'none';
+  document.getElementById('s-form').style.display   = 'block';
+  document.getElementById('sel-ev-name').textContent = selectedEvent.nombre;
+  document.getElementById('sel-ev-sub').textContent  = [selectedEvent.fecha, selectedEvent.lugar].filter(Boolean).join(' · ');
+}
+
+async function submitFeedback(){
+  const rating_general  = document.querySelector('input[name="r-general"]:checked')?.value;
+  if(!rating_general){ showErr('⚠ Califica la experiencia general con las estrellas.'); return; }
+
+  const btn = document.getElementById('btn-submit');
+  btn.disabled = true; btn.textContent = 'Enviando...';
+
+  const { error } = await db.from('feedback').insert([{
+    event_id:       selectedEvent.id,
+    nombre_resp:    isAnon ? null : (document.getElementById('resp-nombre')?.value.trim()||null),
+    anonimo:        isAnon,
+    rating_general: parseInt(rating_general),
+    rating_expositor: parseInt(document.querySelector('input[name="r-expositor"]:checked')?.value||0)||null,
+    rating_tema:    parseInt(document.querySelector('input[name="r-tema"]:checked')?.value||0)||null,
+    desarrollo:     document.querySelector('input[name="desarrollo"]:checked')?.value||null,
+    lo_mejor:       document.getElementById('q-mejor').value.trim()||null,
+    sugerencias:    document.getElementById('q-sugerencias').value.trim()||null,
+    recomendar:     document.querySelector('input[name="recomendar"]:checked')?.value||null,
+  }]);
+
+  if(error){
+    showErr('Error al enviar. Intenta de nuevo.');
+    btn.disabled = false; btn.textContent = '▶ Enviar respuestas';
+    return;
+  }
+  document.getElementById('s-form').style.display   = 'none';
+  document.getElementById('s-thanks').style.display = 'block';
+}
+
+function showErr(msg){
+  const el = document.getElementById('form-err');
+  el.textContent = msg;
+  setTimeout(()=>{ el.textContent=''; }, 4000);
+}
+</script>
+</body>
+</html>

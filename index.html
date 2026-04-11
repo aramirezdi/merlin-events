@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Merlin Events – Asistencia</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+    :root {
+      --blue:#1a5fa5; --blue2:#14508e; --blue3:#0f3d6e;
+      --orange:#e9721f; --orange2:#d4611a;
+      --white:#ffffff; --off:#f0f5fb; --muted:#7a98bb;
+      --text:#1a2a3a; --border:#c5d8ee; --green:#1a9a4a; --red:#d93025;
+    }
+    html { scroll-behavior:smooth; }
+    body { background:var(--off); color:var(--text); font-family:'Inter',sans-serif; min-height:100vh; }
+
+    /* ── AUTH ── */
+    #s-auth {
+      min-height:100vh; display:flex; align-items:center; justify-content:center;
+      background:linear-gradient(135deg, var(--blue3) 0%, var(--blue) 60%, #2272c3 100%);
+      padding:2rem;
+    }
+    .auth-box {
+      background:var(--white); border-radius:18px; padding:2.5rem 3rem;
+      width:100%; max-width:420px; text-align:center;
+      box-shadow:0 20px 60px rgba(0,0,0,.25);
+    }
+    .auth-box .logo { margin-bottom:1.5rem; }
+    .auth-box h2 { font-size:1.1rem; font-weight:700; color:var(--blue); margin-bottom:.35rem; }
+    .auth-box p  { font-size:.88rem; color:var(--muted); margin-bottom:1.75rem; }
+    .auth-box input {
+      width:100%; border:1.5px solid var(--border); border-radius:9px;
+      padding:.75rem 1rem; font-size:.95rem; font-family:'Inter',sans-serif;
+      outline:none; margin-bottom:1rem; color:var(--text); text-align:center;
+      letter-spacing:.15em; transition:border-color .2s;
+    }
+    .auth-box input:focus { border-color:var(--blue); }
+    .auth-err { color:var(--red); font-size:.82rem; margin-top:.4rem; min-height:1rem; }
+
+    /* ── TOPBAR ── */
+    .topbar {
+      background:var(--blue); color:var(--white);
+      display:flex; align-items:center; justify-content:space-between;
+      padding:.75rem 1.5rem; flex-wrap:wrap; gap:.5rem;
+      box-shadow:0 2px 8px rgba(0,0,0,.18);
+    }
+    .topbar-left { display:flex; align-items:center; gap:1rem; }
+    .topbar h1 { font-size:.95rem; font-weight:700; letter-spacing:.03em; }
+    .topbar .event-name { font-size:.82rem; opacity:.8; }
+
+    /* ── MAIN ── */
+    #s-main { display:none; }
+    .wrap { max-width:1000px; margin:0 auto; padding:1.5rem; }
+
+    /* ── TABS ── */
+    .tabs { display:flex; gap:.4rem; margin-bottom:1.5rem; flex-wrap:wrap; }
+    .tab {
+      padding:.5rem 1.2rem; border-radius:8px; border:1.5px solid var(--border);
+      background:var(--white); color:var(--muted); font-size:.82rem; font-weight:600;
+      cursor:pointer; transition:all .2s;
+    }
+    .tab.active { background:var(--blue); color:var(--white); border-color:var(--blue); }
+    .tab:hover:not(.active) { border-color:var(--blue); color:var(--blue); }
+
+    /* ── EVENTO PANEL ── */
+    .card {
+      background:var(--white); border:1px solid var(--border); border-radius:14px;
+      padding:1.5rem; margin-bottom:1.25rem;
+    }
+    .card h3 { font-size:.82rem; font-weight:700; color:var(--blue); letter-spacing:.08em; text-transform:uppercase; margin-bottom:1.1rem; }
+    .form-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:.85rem; }
+    .form-group { display:flex; flex-direction:column; gap:.3rem; }
+    .form-group label { font-size:.75rem; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+    .form-group input {
+      border:1.5px solid var(--border); border-radius:8px; padding:.6rem .85rem;
+      font-size:.92rem; font-family:'Inter',sans-serif; color:var(--text); outline:none; transition:border-color .2s;
+    }
+    .form-group input:focus { border-color:var(--blue); }
+
+    /* ── EVENTOS LIST ── */
+    .events-list { display:grid; gap:.75rem; }
+    .event-item {
+      display:flex; align-items:center; justify-content:space-between;
+      background:var(--white); border:1.5px solid var(--border); border-radius:10px;
+      padding:1rem 1.25rem; cursor:pointer; transition:all .2s; gap:1rem;
+    }
+    .event-item:hover { border-color:var(--blue); box-shadow:0 2px 12px rgba(26,95,165,.1); }
+    .event-item.selected { border-color:var(--orange); background:#fff8f3; }
+    .event-item-info h4 { font-size:.92rem; font-weight:700; color:var(--text); }
+    .event-item-info p  { font-size:.75rem; color:var(--muted); margin-top:.15rem; }
+    .event-badge { background:var(--blue); color:#fff; font-size:.68rem; font-weight:700; padding:.2rem .6rem; border-radius:99px; white-space:nowrap; }
+
+    /* ── PARTICIPANTS ── */
+    .toolbar { display:flex; align-items:center; gap:.75rem; margin-bottom:1rem; flex-wrap:wrap; }
+    .search-input {
+      flex:1; min-width:180px; max-width:320px; border:1.5px solid var(--border); border-radius:8px;
+      padding:.55rem .85rem; font-size:.88rem; font-family:'Inter',sans-serif; color:var(--text); outline:none; transition:border-color .2s;
+    }
+    .search-input:focus { border-color:var(--blue); }
+
+    .participants-table { width:100%; border-collapse:collapse; font-size:.88rem; }
+    .participants-table th {
+      background:var(--blue); color:#fff; padding:.65rem .85rem;
+      text-align:left; font-size:.75rem; font-weight:600; letter-spacing:.06em;
+    }
+    .participants-table th:first-child { border-radius:8px 0 0 0; }
+    .participants-table th:last-child  { border-radius:0 8px 0 0; }
+    .participants-table td { padding:.6rem .85rem; border-bottom:1px solid var(--border); vertical-align:middle; }
+    .participants-table tr:hover td { background:#f5f9ff; }
+    .participants-table tr.present td { background:#f0faf4; }
+    .participants-table tr.present .p-name { color:var(--green); font-weight:600; }
+
+    .check-cell { width:36px; text-align:center; }
+    .check-box {
+      width:22px; height:22px; border-radius:6px; border:2px solid var(--border);
+      display:inline-flex; align-items:center; justify-content:center; cursor:pointer; transition:all .2s;
+    }
+    .present .check-box { background:var(--green); border-color:var(--green); color:#fff; font-size:13px; }
+    .col-actions { width:80px; text-align:right; }
+
+    .btn-icon { background:none; border:none; cursor:pointer; padding:.3rem; border-radius:5px; transition:all .2s; color:var(--muted); font-size:.85rem; }
+    .btn-icon:hover { background:var(--off); color:var(--blue); }
+    .btn-icon.del:hover { color:var(--red); }
+
+    /* ── STATS BAR ── */
+    .stats-bar {
+      display:flex; gap:1rem; margin-bottom:1.25rem; flex-wrap:wrap;
+    }
+    .stat-pill {
+      background:var(--white); border:1.5px solid var(--border); border-radius:99px;
+      padding:.4rem 1.1rem; font-size:.82rem; font-weight:600; color:var(--text);
+      display:flex; align-items:center; gap:.4rem;
+    }
+    .stat-pill .dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+    .dot-blue   { background:var(--blue); }
+    .dot-green  { background:var(--green); }
+    .dot-orange { background:var(--orange); }
+
+    /* ── BUTTONS ── */
+    .btn {
+      display:inline-flex; align-items:center; gap:.4rem;
+      padding:.55rem 1.2rem; border-radius:8px; border:none; cursor:pointer;
+      font-family:'Inter',sans-serif; font-size:.82rem; font-weight:600; transition:all .2s;
+    }
+    .btn-blue   { background:var(--blue); color:#fff; }
+    .btn-blue:hover { background:var(--blue2); }
+    .btn-orange { background:var(--orange); color:#fff; }
+    .btn-orange:hover { background:var(--orange2); }
+    .btn-outline { background:transparent; border:1.5px solid var(--blue); color:var(--blue); }
+    .btn-outline:hover { background:var(--blue); color:#fff; }
+    .btn-outline-red { background:transparent; border:1.5px solid rgba(217,48,37,.4); color:var(--red); }
+    .btn-outline-red:hover { background:rgba(217,48,37,.08); }
+    .btn-sm { padding:.38rem .85rem; font-size:.76rem; }
+    .btn:disabled { opacity:.4; cursor:not-allowed; }
+
+    /* ── MODAL ── */
+    .modal-bg {
+      display:none; position:fixed; inset:0; background:rgba(0,0,0,.45);
+      z-index:200; align-items:center; justify-content:center; padding:1rem;
+    }
+    .modal-bg.open { display:flex; }
+    .modal {
+      background:var(--white); border-radius:16px; padding:2rem;
+      width:100%; max-width:460px; box-shadow:0 20px 60px rgba(0,0,0,.2);
+    }
+    .modal h3 { font-size:1rem; font-weight:700; color:var(--blue); margin-bottom:1.25rem; }
+    .modal label { font-size:.75rem; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; display:block; margin-top:.85rem; margin-bottom:.3rem; }
+    .modal input, .modal select {
+      width:100%; border:1.5px solid var(--border); border-radius:8px;
+      padding:.65rem .85rem; font-size:.92rem; font-family:'Inter',sans-serif; color:var(--text); outline:none; transition:border-color .2s;
+    }
+    .modal input:focus, .modal select:focus { border-color:var(--blue); }
+    .modal-actions { display:flex; gap:.75rem; margin-top:1.5rem; }
+    .modal-err { color:var(--red); font-size:.8rem; margin-top:.5rem; min-height:1rem; }
+
+    /* ── UPLOAD ── */
+    .upload-zone {
+      border:2px dashed var(--border); border-radius:10px; padding:1.75rem;
+      text-align:center; cursor:pointer; transition:all .2s; background:var(--off);
+    }
+    .upload-zone:hover { border-color:var(--blue); background:#f0f7ff; }
+    .upload-zone p { font-size:.88rem; color:var(--muted); margin-top:.5rem; }
+    .upload-zone strong { color:var(--blue); }
+    #file-input { display:none; }
+
+    /* ── PRINT ── */
+    .print-sheet { background:#fff; padding:15mm; font-family:'Inter',Arial,sans-serif; }
+    .print-header { display:flex; align-items:center; gap:8mm; margin-bottom:6mm; }
+    .print-title  { font-size:13pt; font-weight:700; }
+    .print-sub    { font-size:8.5pt; color:#555; margin-top:1mm; }
+    .print-table  { width:100%; border-collapse:collapse; font-size:8pt; margin-top:4mm; }
+    .print-table th { background:#1a5fa5; color:#fff; padding:2.5mm 2mm; text-align:left; }
+    .print-table td { padding:2mm; border-bottom:1px solid #ddd; vertical-align:middle; }
+    .print-table tr:nth-child(even) td { background:#f5f8fc; }
+    .p-badge-present { background:#1a9a4a; color:#fff; border-radius:3px; padding:1mm 2mm; font-size:7pt; font-weight:700; }
+    .p-badge-absent  { background:#e0e0e0; color:#666; border-radius:3px; padding:1mm 2mm; font-size:7pt; }
+    .print-summary { display:flex; gap:8mm; margin-bottom:4mm; font-size:8.5pt; font-weight:700; }
+    .print-summary .ps-p { color:#1a9a4a; }
+    .print-summary .ps-a { color:#999; }
+
+    @media print {
+      body { background:#fff !important; }
+      #s-auth, #s-main .topbar, #s-main .tabs, #s-main .toolbar,
+      #s-main .stats-bar, .card.no-print, .no-print { display:none !important; }
+      #s-main { display:block !important; }
+      #tab-participants { display:block !important; }
+      #tab-eventos, #tab-import { display:none !important; }
+      .participants-table { display:none; }
+      .print-sheet { display:block !important; }
+    }
+    .print-sheet { display:none; }
+
+    .empty-state { text-align:center; padding:3rem; color:var(--muted); font-size:.9rem; }
+
+    .copyright-bar { text-align:center; font-size:.68rem; color:rgba(255,255,255,.75); padding:.55rem 1rem; background:var(--blue3); letter-spacing:.05em; margin-top:2rem; }
+
+    @media(max-width:600px){
+      .auth-box { padding:2rem 1.5rem; }
+      .form-grid { grid-template-columns:1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- AUTH -->
+<div id="s-auth">
+  <div class="auth-box">
+    <div class="logo">
+      <svg width="140" height="36" viewBox="0 0 140 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <text x="0" y="28" font-family="Inter,Arial,sans-serif" font-size="30" font-weight="800" fill="#1a5fa5" letter-spacing="-1">merlin</text>
+        <circle cx="133" cy="22" r="5" fill="#e9721f"/>
+      </svg>
+    </div>
+    <h2>Panel de Asistencia</h2>
+    <p>Merlin Events &mdash; Acceso para organizadores</p>
+    <input type="password" id="pwd" placeholder="Contraseña" onkeydown="if(event.key==='Enter')checkAuth()">
+    <button class="btn btn-blue" style="width:100%;justify-content:center" onclick="checkAuth()">&#9654; Entrar</button>
+    <div class="auth-err" id="auth-err"></div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="s-main">
+  <div class="topbar no-print">
+    <div class="topbar-left">
+      <svg width="90" height="24" viewBox="0 0 140 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <text x="0" y="28" font-family="Inter,Arial,sans-serif" font-size="30" font-weight="800" fill="#ffffff" letter-spacing="-1">merlin</text>
+        <circle cx="133" cy="22" r="5" fill="#e9721f"/>
+      </svg>
+      <div>
+        <div class="topbar h1" style="font-size:.95rem;font-weight:700">Asistencia</div>
+        <div class="event-name" id="topbar-event">Sin evento seleccionado</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+      <button class="btn btn-outline btn-sm" style="color:#fff;border-color:rgba(255,255,255,.4)" onclick="printReport()">&#128424; Imprimir reporte</button>
+      <button class="btn btn-outline-red btn-sm" style="color:rgba(255,255,255,.8);border-color:rgba(255,255,255,.3)" onclick="logout()">&#128682; Salir</button>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="tabs no-print">
+      <button class="tab active" id="btn-tab-eventos"      onclick="switchTab('eventos')">&#128197; Eventos</button>
+      <button class="tab"        id="btn-tab-participants" onclick="switchTab('participants')">&#9989; Asistencia</button>
+      <button class="tab"        id="btn-tab-import"       onclick="switchTab('import')">&#128196; Importar Excel</button>
+    </div>
+
+    <!-- TAB EVENTOS -->
+    <div id="tab-eventos">
+      <div class="card">
+        <h3>&#43; Crear nuevo evento</h3>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Nombre del evento *</label>
+            <input type="text" id="ev-nombre" placeholder="Ej: Masterclass de Ciberseguridad">
+          </div>
+          <div class="form-group">
+            <label>Fecha</label>
+            <input type="date" id="ev-fecha">
+          </div>
+          <div class="form-group">
+            <label>Lugar</label>
+            <input type="text" id="ev-lugar" placeholder="Ej: Bogotá, Colombia">
+          </div>
+          <div class="form-group">
+            <label>Descripción</label>
+            <input type="text" id="ev-desc" placeholder="Ej: Taller presencial, 3 horas">
+          </div>
+        </div>
+        <div style="margin-top:1rem">
+          <button class="btn btn-blue" onclick="createEvent()">&#43; Crear evento</button>
+        </div>
+        <div class="modal-err" id="ev-err"></div>
+      </div>
+
+      <div class="card">
+        <h3>&#128197; Eventos existentes</h3>
+        <div id="events-list"><div class="empty-state">No hay eventos creados aún.</div></div>
+      </div>
+    </div>
+
+    <!-- TAB ASISTENCIA -->
+    <div id="tab-participants" style="display:none">
+      <div id="no-event-msg" class="card" style="text-align:center;color:var(--muted)">
+        &#128197; Selecciona un evento en la pestaña <strong>Eventos</strong> para tomar asistencia.
+      </div>
+      <div id="attendance-panel" style="display:none">
+        <div class="stats-bar no-print" id="stats-bar"></div>
+        <div class="toolbar no-print">
+          <input type="text" class="search-input" id="search" placeholder="&#128269; Buscar por nombre o ID..." oninput="renderParticipants()">
+          <button class="btn btn-blue btn-sm" onclick="openModal()">&#43; Agregar</button>
+          <button class="btn btn-outline btn-sm" onclick="markAll(true)">&#10003; Todos presentes</button>
+          <button class="btn btn-outline btn-sm" onclick="markAll(false)">&#10007; Limpiar</button>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden">
+          <table class="participants-table">
+            <thead>
+              <tr>
+                <th class="check-cell"></th>
+                <th>Nombre completo</th>
+                <th>N° Identificación</th>
+                <th class="col-actions no-print"></th>
+              </tr>
+            </thead>
+            <tbody id="participants-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB IMPORTAR -->
+    <div id="tab-import" style="display:none">
+      <div class="card">
+        <h3>&#128196; Importar participantes desde Excel</h3>
+        <div id="import-no-event" style="color:var(--muted);font-size:.9rem;margin-bottom:1rem">
+          &#9888; Selecciona primero un evento en la pestaña <strong>Eventos</strong>.
+        </div>
+        <div class="upload-zone" onclick="document.getElementById('file-input').click()" id="upload-zone">
+          <div style="font-size:2rem">&#128196;</div>
+          <strong>Haz clic o arrastra tu archivo Excel aquí</strong>
+          <p>Formatos: .xlsx, .xls &nbsp;|&nbsp; El archivo debe tener columnas: <strong>Nombre</strong>, <strong>Apellido</strong>, <strong>ID</strong></p>
+        </div>
+        <input type="file" id="file-input" accept=".xlsx,.xls" onchange="handleFile(event)">
+        <div id="preview-area" style="margin-top:1.25rem"></div>
+      </div>
+    </div>
+
+  </div><!-- /wrap -->
+
+  <!-- PRINT SHEET -->
+  <div class="print-sheet" id="print-sheet"></div>
+
+  <div class="copyright-bar no-print">&copy; 2026 Asociaci&oacute;n Merlin Data Technology &mdash; Todos los derechos reservados</div>
+</div>
+
+<!-- MODAL PARTICIPANTE -->
+<div class="modal-bg" id="modal-bg" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h3 id="modal-title">Agregar participante</h3>
+    <label>Nombre *</label>
+    <input type="text" id="m-nombre" placeholder="Nombre">
+    <label>Apellido *</label>
+    <input type="text" id="m-apellido" placeholder="Apellido">
+    <label>N° de Identificación</label>
+    <input type="text" id="m-id" placeholder="Cédula o documento">
+    <div class="modal-err" id="m-err"></div>
+    <div class="modal-actions">
+      <button class="btn btn-blue" style="flex:1" id="m-btn" onclick="saveParticipant()">Guardar</button>
+      <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const PASSWORD    = 'merlin2026';
+const SUPABASE_URL = 'SUPABASE_URL_PLACEHOLDER';
+const SUPABASE_KEY = 'SUPABASE_KEY_PLACEHOLDER';
+
+let db, currentEvent = null, participants = [], editingId = null;
+
+/* ── AUTH ── */
+function checkAuth(){
+  if(document.getElementById('pwd').value === PASSWORD){
+    document.getElementById('s-auth').style.display = 'none';
+    document.getElementById('s-main').style.display = 'block';
+    db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    loadEvents();
+  } else {
+    document.getElementById('auth-err').textContent = '⚠ Contraseña incorrecta';
+  }
+}
+function logout(){
+  location.reload();
+}
+document.getElementById('pwd').addEventListener('keydown', e => { if(e.key==='Enter') checkAuth(); });
+
+/* ── TABS ── */
+function switchTab(tab){
+  ['eventos','participants','import'].forEach(t => {
+    document.getElementById('tab-'+t).style.display = t===tab ? 'block' : 'none';
+    document.getElementById('btn-tab-'+t).classList.toggle('active', t===tab);
+  });
+  if(tab === 'participants') renderParticipants();
+}
+
+/* ── EVENTS ── */
+async function loadEvents(){
+  const { data } = await db.from('events').select('*').order('created_at',{ascending:false});
+  renderEvents(data || []);
+}
+
+function renderEvents(events){
+  const el = document.getElementById('events-list');
+  if(!events.length){ el.innerHTML='<div class="empty-state">No hay eventos creados aún.</div>'; return; }
+  el.innerHTML = events.map(e => `
+    <div class="event-item ${currentEvent?.id===e.id?'selected':''}" onclick="selectEvent(${JSON.stringify(e).replace(/"/g,'&quot;')})">
+      <div class="event-item-info">
+        <h4>${e.nombre}</h4>
+        <p>${[e.fecha,e.lugar,e.descripcion].filter(Boolean).join(' · ')}</p>
+      </div>
+      <div style="display:flex;align-items:center;gap:.5rem">
+        <span class="event-badge">Seleccionar</span>
+        <button class="btn btn-icon del" onclick="deleteEvent('${e.id}',event)" title="Eliminar">&#128465;</button>
+      </div>
+    </div>`).join('');
+}
+
+async function createEvent(){
+  const nombre = document.getElementById('ev-nombre').value.trim();
+  if(!nombre){ document.getElementById('ev-err').textContent='⚠ El nombre es obligatorio.'; return; }
+  const { error } = await db.from('events').insert([{
+    nombre,
+    fecha:       document.getElementById('ev-fecha').value || null,
+    lugar:       document.getElementById('ev-lugar').value.trim() || null,
+    descripcion: document.getElementById('ev-desc').value.trim() || null,
+  }]);
+  if(error){ document.getElementById('ev-err').textContent='Error: '+error.message; return; }
+  document.getElementById('ev-nombre').value = '';
+  document.getElementById('ev-fecha').value  = '';
+  document.getElementById('ev-lugar').value  = '';
+  document.getElementById('ev-desc').value   = '';
+  document.getElementById('ev-err').textContent = '';
+  loadEvents();
+}
+
+async function deleteEvent(id, e){
+  e.stopPropagation();
+  if(!confirm('¿Eliminar este evento y todos sus participantes?')) return;
+  await db.from('attendance').delete().eq('event_id', id);
+  await db.from('participants').delete().eq('event_id', id);
+  await db.from('events').delete().eq('id', id);
+  if(currentEvent?.id === id){ currentEvent = null; document.getElementById('topbar-event').textContent = 'Sin evento seleccionado'; }
+  loadEvents();
+}
+
+async function selectEvent(ev){
+  currentEvent = ev;
+  document.getElementById('topbar-event').textContent = ev.nombre;
+  document.getElementById('import-no-event').style.display = 'none';
+  await loadParticipants();
+  loadEvents();
+  switchTab('participants');
+}
+
+/* ── PARTICIPANTS ── */
+async function loadParticipants(){
+  if(!currentEvent) return;
+  document.getElementById('no-event-msg').style.display = 'none';
+  document.getElementById('attendance-panel').style.display = 'block';
+  const { data } = await db.from('participants')
+    .select('*, attendance(present)')
+    .eq('event_id', currentEvent.id)
+    .order('apellido');
+  participants = (data||[]).map(p => ({
+    ...p,
+    present: p.attendance?.[0]?.present || false
+  }));
+  renderParticipants();
+  updateStats();
+}
+
+function renderParticipants(){
+  const q = (document.getElementById('search')?.value||'').toLowerCase();
+  const tbody = document.getElementById('participants-tbody');
+  const filtered = participants.filter(p =>
+    !q ||
+    p.nombre.toLowerCase().includes(q) ||
+    p.apellido.toLowerCase().includes(q) ||
+    (p.id_number||'').toLowerCase().includes(q)
+  );
+  if(!filtered.length){
+    tbody.innerHTML = `<tr><td colspan="4" class="empty-state">${participants.length ? 'Sin resultados para la búsqueda.' : 'No hay participantes. Agrega o importa desde Excel.'}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = filtered.map(p => `
+    <tr class="${p.present?'present':''}" id="row-${p.id}">
+      <td class="check-cell" onclick="toggleAttendance('${p.id}')">
+        <div class="check-box">${p.present?'✓':''}</div>
+      </td>
+      <td class="p-name" onclick="toggleAttendance('${p.id}')" style="cursor:pointer">${p.apellido}, ${p.nombre}</td>
+      <td style="color:var(--muted);font-size:.82rem">${p.id_number||'—'}</td>
+      <td class="col-actions no-print">
+        <button class="btn-icon" onclick="openEditModal('${p.id}')" title="Editar">&#9998;</button>
+        <button class="btn-icon del" onclick="removeParticipant('${p.id}')" title="Eliminar">&#10005;</button>
+      </td>
+    </tr>`).join('');
+}
+
+function updateStats(){
+  const total   = participants.length;
+  const present = participants.filter(p=>p.present).length;
+  const pct     = total ? Math.round(present/total*100) : 0;
+  document.getElementById('stats-bar').innerHTML = `
+    <div class="stat-pill"><span class="dot dot-blue"></span> Total: <strong>${total}</strong></div>
+    <div class="stat-pill"><span class="dot dot-green"></span> Presentes: <strong>${present}</strong></div>
+    <div class="stat-pill"><span class="dot dot-orange"></span> Ausentes: <strong>${total-present}</strong></div>
+    <div class="stat-pill">&#128202; Asistencia: <strong>${pct}%</strong></div>`;
+}
+
+async function toggleAttendance(pid){
+  const p = participants.find(x=>x.id===pid);
+  if(!p) return;
+  p.present = !p.present;
+  // Upsert en attendance
+  await db.from('attendance').upsert([{
+    event_id: currentEvent.id, participant_id: pid, present: p.present
+  }],{ onConflict:'event_id,participant_id' });
+  const row = document.getElementById('row-'+pid);
+  if(row){
+    row.classList.toggle('present', p.present);
+    row.querySelector('.check-box').textContent = p.present?'✓':'';
+    row.querySelector('.p-name') && (row.querySelector('.p-name').style.color = p.present?'var(--green)':'');
+  }
+  updateStats();
+}
+
+async function markAll(val){
+  if(!currentEvent) return;
+  participants.forEach(p => p.present = val);
+  const rows = participants.map(p => ({ event_id:currentEvent.id, participant_id:p.id, present:val }));
+  await db.from('attendance').upsert(rows, { onConflict:'event_id,participant_id' });
+  renderParticipants();
+  updateStats();
+}
+
+/* ── MODAL ── */
+function openModal(){
+  editingId = null;
+  document.getElementById('modal-title').textContent = 'Agregar participante';
+  document.getElementById('m-btn').textContent = 'Agregar';
+  document.getElementById('m-nombre').value  = '';
+  document.getElementById('m-apellido').value = '';
+  document.getElementById('m-id').value      = '';
+  document.getElementById('m-err').textContent = '';
+  document.getElementById('modal-bg').classList.add('open');
+  setTimeout(()=>document.getElementById('m-nombre').focus(),50);
+}
+
+function openEditModal(pid){
+  const p = participants.find(x=>x.id===pid);
+  if(!p) return;
+  editingId = pid;
+  document.getElementById('modal-title').textContent = 'Editar participante';
+  document.getElementById('m-btn').textContent = 'Guardar cambios';
+  document.getElementById('m-nombre').value   = p.nombre;
+  document.getElementById('m-apellido').value = p.apellido;
+  document.getElementById('m-id').value       = p.id_number||'';
+  document.getElementById('m-err').textContent = '';
+  document.getElementById('modal-bg').classList.add('open');
+  setTimeout(()=>document.getElementById('m-nombre').focus(),50);
+}
+
+function closeModal(){ document.getElementById('modal-bg').classList.remove('open'); editingId=null; }
+
+async function saveParticipant(){
+  if(!currentEvent){ alert('Selecciona un evento primero.'); return; }
+  const nombre   = document.getElementById('m-nombre').value.trim();
+  const apellido = document.getElementById('m-apellido').value.trim();
+  const id_number= document.getElementById('m-id').value.trim()||null;
+  if(!nombre||!apellido){ document.getElementById('m-err').textContent='⚠ Nombre y apellido son obligatorios.'; return; }
+
+  if(editingId){
+    await db.from('participants').update({nombre,apellido,id_number}).eq('id',editingId);
+    const idx = participants.findIndex(p=>p.id===editingId);
+    if(idx!==-1){ participants[idx].nombre=nombre; participants[idx].apellido=apellido; participants[idx].id_number=id_number; }
+  } else {
+    const { data } = await db.from('participants').insert([{event_id:currentEvent.id,nombre,apellido,id_number}]).select();
+    if(data?.[0]) participants.push({...data[0], present:false});
+  }
+  closeModal();
+  renderParticipants();
+  updateStats();
+}
+
+async function removeParticipant(pid){
+  if(!confirm('¿Eliminar este participante?')) return;
+  await db.from('attendance').delete().eq('participant_id',pid);
+  await db.from('participants').delete().eq('id',pid);
+  participants = participants.filter(p=>p.id!==pid);
+  renderParticipants();
+  updateStats();
+}
+
+/* ── EXCEL IMPORT ── */
+function handleFile(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev){
+    const wb   = XLSX.read(ev.target.result, {type:'binary'});
+    const ws   = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, {defval:''});
+    previewImport(rows);
+  };
+  reader.readAsBinaryString(file);
+}
+
+let importRows = [];
+function previewImport(rows){
+  // Mapear columnas flexiblemente
+  importRows = rows.map(r => {
+    const keys = Object.keys(r);
+    const find = (...names) => {
+      for(const n of names){
+        const k = keys.find(k=>k.toLowerCase().replace(/\s/g,'').includes(n.toLowerCase()));
+        if(k && r[k]) return String(r[k]).trim();
+      }
+      return '';
+    };
+    return {
+      nombre:    find('nombre','name','first'),
+      apellido:  find('apellido','lastname','surname','last'),
+      id_number: find('id','cedula','documento','identification','numero')
+    };
+  }).filter(r => r.nombre || r.apellido);
+
+  if(!importRows.length){
+    document.getElementById('preview-area').innerHTML = '<p style="color:var(--red)">⚠ No se encontraron datos válidos. Verifica que el Excel tenga columnas: Nombre, Apellido, ID.</p>';
+    return;
+  }
+
+  document.getElementById('preview-area').innerHTML = `
+    <div style="margin-bottom:.75rem;font-size:.88rem;color:var(--muted)">
+      Se encontraron <strong>${importRows.length} participantes</strong>. Revisa la vista previa:
+    </div>
+    <div style="overflow-x:auto;margin-bottom:1rem">
+      <table class="participants-table" style="font-size:.8rem">
+        <thead><tr><th>#</th><th>Nombre</th><th>Apellido</th><th>N° ID</th></tr></thead>
+        <tbody>${importRows.slice(0,10).map((r,i)=>`<tr><td>${i+1}</td><td>${r.nombre}</td><td>${r.apellido}</td><td>${r.id_number||'—'}</td></tr>`).join('')}
+        ${importRows.length>10?`<tr><td colspan="4" style="text-align:center;color:var(--muted)">... y ${importRows.length-10} más</td></tr>`:''}
+        </tbody>
+      </table>
+    </div>
+    <button class="btn btn-blue" onclick="confirmImport()" ${!currentEvent?'disabled':''}>
+      &#128228; Importar ${importRows.length} participantes al evento "${currentEvent?.nombre||'(sin evento)'}"
+    </button>`;
+}
+
+async function confirmImport(){
+  if(!currentEvent){ alert('Selecciona un evento primero.'); return; }
+  const toInsert = importRows.map(r => ({event_id:currentEvent.id, nombre:r.nombre, apellido:r.apellido, id_number:r.id_number||null}));
+  const { error } = await db.from('participants').insert(toInsert);
+  if(error){ alert('Error al importar: '+error.message); return; }
+  document.getElementById('preview-area').innerHTML = `<p style="color:var(--green);font-weight:600">✓ ${toInsert.length} participantes importados correctamente.</p>`;
+  document.getElementById('file-input').value = '';
+  importRows = [];
+  await loadParticipants();
+}
+
+/* ── PRINT ── */
+function printReport(){
+  if(!currentEvent){ alert('Selecciona un evento primero.'); return; }
+  const present = participants.filter(p=>p.present).length;
+  const absent  = participants.length - present;
+  const ev = currentEvent;
+  const rows = [...participants].sort((a,b)=>a.apellido.localeCompare(b.apellido));
+  document.getElementById('print-sheet').innerHTML = `
+    <div class="print-header">
+      <svg width="100" height="26" viewBox="0 0 140 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <text x="0" y="28" font-family="Inter,Arial,sans-serif" font-size="30" font-weight="800" fill="#1a5fa5" letter-spacing="-1">merlin</text>
+        <circle cx="133" cy="22" r="5" fill="#e9721f"/>
+      </svg>
+      <div>
+        <div class="print-title">${ev.nombre}</div>
+        <div class="print-sub">${[ev.fecha,ev.lugar,ev.descripcion].filter(Boolean).join(' · ')} &nbsp;|&nbsp; Impreso: ${new Date().toLocaleString('es-CO')}</div>
+      </div>
+    </div>
+    <div class="print-summary">
+      <span>Total: <strong>${participants.length}</strong></span>
+      <span class="ps-p">✓ Presentes: <strong>${present}</strong></span>
+      <span class="ps-a">✗ Ausentes: <strong>${absent}</strong></span>
+      <span>Asistencia: <strong>${participants.length?Math.round(present/participants.length*100):0}%</strong></span>
+    </div>
+    <table class="print-table">
+      <thead><tr><th>#</th><th>Apellido, Nombre</th><th>N° Identificación</th><th>Asistencia</th></tr></thead>
+      <tbody>${rows.map((p,i)=>`<tr>
+        <td>${i+1}</td>
+        <td>${p.apellido}, ${p.nombre}</td>
+        <td>${p.id_number||'—'}</td>
+        <td><span class="${p.present?'p-badge-present':'p-badge-absent'}">${p.present?'✓ PRESENTE':'AUSENTE'}</span></td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  window.print();
+}
+
+// Drag & drop en upload zone
+const zone = document.getElementById('upload-zone');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor='var(--blue)'; });
+zone.addEventListener('dragleave', () => { zone.style.borderColor=''; });
+zone.addEventListener('drop', e => {
+  e.preventDefault(); zone.style.borderColor='';
+  const file = e.dataTransfer.files[0];
+  if(file){ const dt = new DataTransfer(); dt.items.add(file); document.getElementById('file-input').files = dt.files; handleFile({target:{files:[file]}}); }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard – Merlin Events</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+    :root {
+      --blue:#1a5fa5; --blue2:#14508e; --blue3:#0f3d6e;
+      --orange:#e9721f; --white:#ffffff; --off:#f0f5fb;
+      --muted:#7a98bb; --text:#1a2a3a; --border:#c5d8ee;
+      --green:#1a9a4a; --red:#d93025; --gold:#f5a623;
+    }
+    html { scroll-behavior:smooth; }
+    body { background:var(--off); color:var(--text); font-family:'Inter',sans-serif; min-height:100vh; }
+
+    /* AUTH */
+    #s-auth {
+      min-height:100vh; display:flex; align-items:center; justify-content:center;
+      background:linear-gradient(135deg, var(--blue3) 0%, var(--blue) 60%, #2272c3 100%);
+      padding:2rem;
+    }
+    .auth-box {
+      background:var(--white); border-radius:18px; padding:2.5rem 3rem;
+      width:100%; max-width:420px; text-align:center;
+      box-shadow:0 20px 60px rgba(0,0,0,.25);
+    }
+    .auth-box h2 { font-size:1.1rem; font-weight:700; color:var(--blue); margin-bottom:.35rem; }
+    .auth-box p  { font-size:.88rem; color:var(--muted); margin-bottom:1.75rem; }
+    .auth-box input {
+      width:100%; border:1.5px solid var(--border); border-radius:9px;
+      padding:.75rem 1rem; font-size:.95rem; font-family:'Inter',sans-serif;
+      outline:none; margin-bottom:1rem; color:var(--text); text-align:center;
+      letter-spacing:.15em; transition:border-color .2s;
+    }
+    .auth-box input:focus { border-color:var(--blue); }
+    .auth-err { color:var(--red); font-size:.82rem; min-height:1rem; }
+
+    /* TOPBAR */
+    .topbar {
+      background:var(--blue); color:#fff;
+      display:flex; align-items:center; justify-content:space-between;
+      padding:.75rem 1.5rem; flex-wrap:wrap; gap:.5rem;
+      box-shadow:0 2px 8px rgba(0,0,0,.18);
+    }
+    .topbar-left { display:flex; align-items:center; gap:1rem; }
+    .topbar h1 { font-size:.95rem; font-weight:700; }
+
+    /* MAIN */
+    #s-main { display:none; }
+    .wrap { max-width:1100px; margin:0 auto; padding:1.5rem; }
+
+    /* EVENT SELECTOR */
+    .event-selector { display:flex; align-items:center; gap:.75rem; margin-bottom:1.5rem; flex-wrap:wrap; }
+    .event-selector select {
+      flex:1; min-width:200px; border:1.5px solid var(--border); border-radius:8px;
+      padding:.6rem .9rem; font-size:.92rem; font-family:'Inter',sans-serif; color:var(--text); outline:none;
+    }
+    .event-selector select:focus { border-color:var(--blue); }
+
+    /* STAT CARDS */
+    .stat-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:1rem; margin-bottom:1.5rem; }
+    .stat-card {
+      background:var(--white); border:1px solid var(--border); border-radius:14px;
+      padding:1.25rem; text-align:center;
+    }
+    .stat-card .sc-val { font-size:2rem; font-weight:800; color:var(--blue); line-height:1; }
+    .stat-card .sc-val.green  { color:var(--green); }
+    .stat-card .sc-val.orange { color:var(--orange); }
+    .stat-card .sc-val.gold   { color:var(--gold); }
+    .stat-card .sc-label { font-size:.78rem; color:var(--muted); margin-top:.35rem; font-weight:500; }
+
+    /* SECTIONS */
+    .section { margin-bottom:1.5rem; }
+    .section-title {
+      font-size:.8rem; font-weight:700; color:var(--blue); letter-spacing:.08em;
+      text-transform:uppercase; margin-bottom:1rem;
+      display:flex; align-items:center; gap:.5rem;
+    }
+    .card {
+      background:var(--white); border:1px solid var(--border); border-radius:14px; padding:1.25rem;
+    }
+
+    /* BAR CHART */
+    .bar-chart { display:flex; flex-direction:column; gap:.6rem; }
+    .bar-row { display:flex; align-items:center; gap:.75rem; }
+    .bar-label { font-size:.82rem; color:var(--text); min-width:90px; text-align:right; font-weight:500; }
+    .bar-track { flex:1; background:var(--off); border-radius:99px; height:18px; overflow:hidden; }
+    .bar-fill  { height:100%; border-radius:99px; background:var(--blue); transition:width .4s; }
+    .bar-fill.orange { background:var(--orange); }
+    .bar-fill.green  { background:var(--green); }
+    .bar-fill.gold   { background:var(--gold); }
+    .bar-count { font-size:.8rem; color:var(--muted); min-width:30px; font-weight:600; }
+
+    /* STAR AVG */
+    .stars-display { display:flex; align-items:center; gap:.5rem; }
+    .stars-display .val { font-size:1.8rem; font-weight:800; color:var(--gold); }
+    .stars-display .stars { color:var(--gold); font-size:1.3rem; letter-spacing:2px; }
+    .stars-display .count { font-size:.8rem; color:var(--muted); }
+
+    .rating-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:1rem; margin-bottom:1rem; }
+    .rating-box { padding:1rem; background:var(--off); border-radius:10px; }
+    .rating-box .rb-label { font-size:.75rem; font-weight:600; color:var(--muted); margin-bottom:.5rem; text-transform:uppercase; letter-spacing:.06em; }
+
+    /* RESPONSES */
+    .response-card {
+      background:var(--off); border:1px solid var(--border); border-radius:10px;
+      padding:1rem 1.25rem; margin-bottom:.75rem; position:relative;
+    }
+    .response-card .rc-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:.6rem; flex-wrap:wrap; gap:.5rem; }
+    .rc-name { font-weight:600; font-size:.88rem; }
+    .rc-date { font-size:.75rem; color:var(--muted); }
+    .rc-stars { color:var(--gold); font-size:.9rem; letter-spacing:1px; }
+    .rc-text  { font-size:.85rem; color:var(--text); line-height:1.5; margin-top:.35rem; }
+    .rc-text strong { color:var(--muted); font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; display:block; margin-bottom:.15rem; margin-top:.4rem; }
+    .btn-del-resp { background:none; border:none; cursor:pointer; color:var(--muted); font-size:.8rem; padding:.2rem .4rem; border-radius:4px; transition:color .2s; }
+    .btn-del-resp:hover { color:var(--red); }
+
+    /* TABS */
+    .tabs { display:flex; gap:.4rem; margin-bottom:1.25rem; flex-wrap:wrap; }
+    .tab { padding:.5rem 1.1rem; border-radius:8px; border:1.5px solid var(--border); background:var(--white); color:var(--muted); font-size:.8rem; font-weight:600; cursor:pointer; transition:all .2s; }
+    .tab.active { background:var(--blue); color:#fff; border-color:var(--blue); }
+    .tab:hover:not(.active) { border-color:var(--blue); color:var(--blue); }
+
+    /* BUTTONS */
+    .btn { display:inline-flex; align-items:center; gap:.4rem; padding:.5rem 1.1rem; border-radius:8px; border:none; cursor:pointer; font-family:'Inter',sans-serif; font-size:.8rem; font-weight:600; transition:all .2s; }
+    .btn-blue   { background:var(--blue); color:#fff; }
+    .btn-blue:hover { background:var(--blue2); }
+    .btn-outline { background:transparent; border:1.5px solid var(--blue); color:var(--blue); }
+    .btn-outline:hover { background:var(--blue); color:#fff; }
+    .btn-outline-red { background:transparent; border:1.5px solid rgba(217,48,37,.4); color:var(--red); }
+    .btn-sm { padding:.35rem .8rem; font-size:.75rem; }
+
+    /* PRINT */
+    .print-area { display:none; }
+    @media print {
+      body { background:#fff !important; }
+      #s-auth, .topbar, .tabs, .event-selector, .no-print { display:none !important; }
+      #s-main { display:block !important; }
+      .print-area { display:block !important; }
+      .dash-area  { display:none !important; }
+      * { color:#000 !important; }
+      .stat-card { border:1px solid #ccc !important; break-inside:avoid; }
+      .bar-fill  { print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+    }
+
+    .empty-state { text-align:center; padding:2.5rem; color:var(--muted); font-size:.9rem; }
+    .copyright-bar { text-align:center; font-size:.68rem; color:#fff; padding:.55rem 1rem; background:var(--blue3); letter-spacing:.05em; margin-top:2rem; }
+  </style>
+</head>
+<body>
+
+<!-- AUTH -->
+<div id="s-auth">
+  <div class="auth-box">
+    <div style="margin-bottom:1.25rem">
+      <svg width="140" height="36" viewBox="0 0 140 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <text x="0" y="28" font-family="Inter,Arial,sans-serif" font-size="30" font-weight="800" fill="#1a5fa5" letter-spacing="-1">merlin</text>
+        <circle cx="133" cy="22" r="5" fill="#e9721f"/>
+      </svg>
+    </div>
+    <h2>Dashboard de Resultados</h2>
+    <p>Merlin Events &mdash; Acceso para organizadores</p>
+    <input type="password" id="pwd" placeholder="Contraseña" onkeydown="if(event.key==='Enter')checkAuth()">
+    <button class="btn btn-blue" style="width:100%;justify-content:center" onclick="checkAuth()">&#9654; Entrar</button>
+    <div class="auth-err" id="auth-err"></div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="s-main">
+  <div class="topbar no-print">
+    <div class="topbar-left">
+      <svg width="90" height="24" viewBox="0 0 140 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <text x="0" y="28" font-family="Inter,Arial,sans-serif" font-size="30" font-weight="800" fill="#ffffff" letter-spacing="-1">merlin</text>
+        <circle cx="133" cy="22" r="5" fill="#e9721f"/>
+      </svg>
+      <h1>Dashboard de Resultados</h1>
+    </div>
+    <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+      <button class="btn btn-outline btn-sm" style="color:#fff;border-color:rgba(255,255,255,.4)" onclick="printDash()">&#128424; Imprimir</button>
+      <button class="btn btn-outline btn-sm" style="color:rgba(255,255,255,.8);border-color:rgba(255,255,255,.3)" onclick="logout()">&#128682; Salir</button>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="event-selector no-print">
+      <select id="event-select" onchange="loadDashboard()">
+        <option value="">— Selecciona un evento —</option>
+      </select>
+      <button class="btn btn-blue btn-sm" onclick="loadDashboard()">&#8635; Actualizar</button>
+    </div>
+
+    <div class="tabs no-print">
+      <button class="tab active" id="btn-tab-asistencia" onclick="switchTab('asistencia')">&#9989; Asistencia</button>
+      <button class="tab"        id="btn-tab-encuesta"   onclick="switchTab('encuesta')">&#11088; Encuesta</button>
+    </div>
+
+    <!-- DASHBOARD AREA -->
+    <div class="dash-area" id="dash-area">
+      <div class="empty-state">Selecciona un evento para ver los resultados.</div>
+    </div>
+
+    <!-- PRINT AREA -->
+    <div class="print-area" id="print-area"></div>
+  </div>
+
+  <div class="copyright-bar no-print">&copy; 2026 Asociaci&oacute;n Merlin Data Technology &mdash; Todos los derechos reservados</div>
+</div>
+
+<script>
+const PASSWORD     = 'merlin.admin';
+const SUPABASE_URL = 'SUPABASE_URL_PLACEHOLDER';
+const SUPABASE_KEY = 'SUPABASE_KEY_PLACEHOLDER';
+
+let db, currentTab = 'asistencia', allFeedback = [], allParticipants = [];
+
+function checkAuth(){
+  if(document.getElementById('pwd').value === PASSWORD){
+    document.getElementById('s-auth').style.display = 'none';
+    document.getElementById('s-main').style.display = 'block';
+    db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    loadEvents();
+  } else {
+    document.getElementById('auth-err').textContent = '⚠ Contraseña incorrecta';
+  }
+}
+function logout(){ location.reload(); }
+document.getElementById('pwd').addEventListener('keydown', e => { if(e.key==='Enter') checkAuth(); });
+
+function switchTab(tab){
+  currentTab = tab;
+  document.getElementById('btn-tab-asistencia').classList.toggle('active', tab==='asistencia');
+  document.getElementById('btn-tab-encuesta').classList.toggle('active', tab==='encuesta');
+  loadDashboard();
+}
+
+async function loadEvents(){
+  const { data } = await db.from('events').select('*').order('created_at',{ascending:false});
+  const sel = document.getElementById('event-select');
+  if(!data?.length){ sel.innerHTML='<option value="">— No hay eventos —</option>'; return; }
+  sel.innerHTML = '<option value="">— Selecciona un evento —</option>' +
+    data.map(e=>`<option value="${e.id}">${e.nombre}${e.fecha?' · '+e.fecha:''}</option>`).join('');
+}
+
+async function loadDashboard(){
+  const eid = document.getElementById('event-select').value;
+  if(!eid){ document.getElementById('dash-area').innerHTML='<div class="empty-state">Selecciona un evento para ver los resultados.</div>'; return; }
+  document.getElementById('dash-area').innerHTML='<div class="empty-state">&#8635; Cargando...</div>';
+  if(currentTab==='asistencia') await renderAttendanceDash(eid);
+  else await renderEncuestaDash(eid);
+}
+
+/* ── ASISTENCIA DASHBOARD ── */
+async function renderAttendanceDash(eid){
+  const { data: parts } = await db.from('participants').select('*, attendance(present)').eq('event_id',eid).order('apellido');
+  allParticipants = (parts||[]).map(p=>({...p, present: p.attendance?.[0]?.present||false}));
+  const total   = allParticipants.length;
+  const present = allParticipants.filter(p=>p.present).length;
+  const absent  = total - present;
+  const pct     = total ? Math.round(present/total*100) : 0;
+
+  document.getElementById('dash-area').innerHTML = `
+    <div class="stat-cards">
+      <div class="stat-card"><div class="sc-val">${total}</div><div class="sc-label">Participantes registrados</div></div>
+      <div class="stat-card"><div class="sc-val green">${present}</div><div class="sc-label">Presentes</div></div>
+      <div class="stat-card"><div class="sc-val" style="color:var(--muted)">${absent}</div><div class="sc-label">Ausentes</div></div>
+      <div class="stat-card"><div class="sc-val orange">${pct}%</div><div class="sc-label">Porcentaje de asistencia</div></div>
+    </div>
+    <div class="section">
+      <div class="section-title">&#128203; Listado de participantes</div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <table style="width:100%;border-collapse:collapse;font-size:.85rem">
+          <thead><tr>
+            <th style="background:var(--blue);color:#fff;padding:.65rem .85rem;text-align:left;font-size:.75rem">#</th>
+            <th style="background:var(--blue);color:#fff;padding:.65rem .85rem;text-align:left;font-size:.75rem">Apellido, Nombre</th>
+            <th style="background:var(--blue);color:#fff;padding:.65rem .85rem;text-align:left;font-size:.75rem">N° ID</th>
+            <th style="background:var(--blue);color:#fff;padding:.65rem .85rem;text-align:center;font-size:.75rem">Asistencia</th>
+          </tr></thead>
+          <tbody>${allParticipants.map((p,i)=>`<tr style="${i%2===0?'':'background:var(--off)'}">
+            <td style="padding:.55rem .85rem;border-bottom:1px solid var(--border)">${i+1}</td>
+            <td style="padding:.55rem .85rem;border-bottom:1px solid var(--border);font-weight:${p.present?'600':'400'};color:${p.present?'var(--green)':'var(--text)'}">${p.apellido}, ${p.nombre}</td>
+            <td style="padding:.55rem .85rem;border-bottom:1px solid var(--border);color:var(--muted)">${p.id_number||'—'}</td>
+            <td style="padding:.55rem .85rem;border-bottom:1px solid var(--border);text-align:center">
+              <span style="background:${p.present?'var(--green)':'#e0e0e0'};color:${p.present?'#fff':'#666'};border-radius:4px;padding:2px 8px;font-size:.72rem;font-weight:700">
+                ${p.present?'✓ PRESENTE':'AUSENTE'}
+              </span>
+            </td>
+          </tr>`).join('')}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+/* ── ENCUESTA DASHBOARD ── */
+async function renderEncuestaDash(eid){
+  const { data: fb } = await db.from('feedback').select('*').eq('event_id',eid).order('created_at',{ascending:false});
+  allFeedback = fb||[];
+  const n = allFeedback.length;
+
+  const avg = key => n ? (allFeedback.reduce((s,r)=>s+(r[key]||0),0)/allFeedback.filter(r=>r[key]).length||0).toFixed(1) : '—';
+  const stars = v => v==='—' ? '—' : '★'.repeat(Math.round(v))+'☆'.repeat(5-Math.round(v));
+  const count = (key,val) => allFeedback.filter(r=>r[key]===val).length;
+
+  const desarOpts = ['Excelente','Muy bueno','Bueno','Regular','Mejorable'];
+  const recOpts   = ['Sí, definitivamente','Tal vez','No'];
+
+  const maxDesr = Math.max(...desarOpts.map(v=>count('desarrollo',v)),1);
+  const maxRec  = Math.max(...recOpts.map(v=>count('recomendar',v)),1);
+
+  document.getElementById('dash-area').innerHTML = `
+    <!-- Stats generales -->
+    <div class="stat-cards">
+      <div class="stat-card"><div class="sc-val">${n}</div><div class="sc-label">Respuestas totales</div></div>
+      <div class="stat-card">
+        <div style="display:flex;align-items:center;justify-content:center;gap:.3rem">
+          <span style="font-size:1.6rem;font-weight:800;color:var(--gold)">${avg('rating_general')}</span>
+          <span style="color:var(--gold);font-size:1rem">${n?stars(avg('rating_general')):''}</span>
+        </div>
+        <div class="sc-label">Promedio general</div>
+      </div>
+      <div class="stat-card">
+        <div style="display:flex;align-items:center;justify-content:center;gap:.3rem">
+          <span style="font-size:1.6rem;font-weight:800;color:var(--gold)">${avg('rating_expositor')}</span>
+        </div>
+        <div class="sc-label">Promedio expositor</div>
+      </div>
+      <div class="stat-card">
+        <div class="sc-val green">${n?Math.round(count('recomendar','Sí, definitivamente')/n*100):0}%</div>
+        <div class="sc-label">Lo recomienda</div>
+      </div>
+    </div>
+
+    <!-- Ratings detalle -->
+    <div class="section">
+      <div class="section-title">&#11088; Calificaciones</div>
+      <div class="rating-grid">
+        ${[['rating_general','Experiencia general'],['rating_expositor','Expositor'],['rating_tema','Tema']].map(([key,lbl])=>`
+        <div class="rating-box">
+          <div class="rb-label">${lbl}</div>
+          <div class="stars-display">
+            <span class="val">${avg(key)}</span>
+            <span class="stars">${n?stars(avg(key)):''}</span>
+            <span class="count">${allFeedback.filter(r=>r[key]).length} resp.</span>
+          </div>
+          <div class="bar-chart" style="margin-top:.75rem">
+            ${[5,4,3,2,1].map(v=>{const c=count(key,v); return `
+              <div class="bar-row">
+                <span class="bar-label" style="font-size:.72rem">${'★'.repeat(v)}</span>
+                <div class="bar-track"><div class="bar-fill gold" style="width:${n?Math.round(c/allFeedback.filter(r=>r[key]).length*100):0}%"></div></div>
+                <span class="bar-count">${c}</span>
+              </div>`}).join('')}
+          </div>
+        </div>`).join('')}
+      </div>
+    </div>
+
+    <!-- Desarrollo -->
+    <div class="section">
+      <div class="section-title">&#127775; Desarrollo del evento</div>
+      <div class="card">
+        <div class="bar-chart">
+          ${desarOpts.map(v=>{const c=count('desarrollo',v); return `
+            <div class="bar-row">
+              <span class="bar-label">${v}</span>
+              <div class="bar-track"><div class="bar-fill" style="width:${Math.round(c/maxDesr*100)}%"></div></div>
+              <span class="bar-count">${c}</span>
+            </div>`}).join('')}
+        </div>
+      </div>
+    </div>
+
+    <!-- Recomendar -->
+    <div class="section">
+      <div class="section-title">&#128226; ¿Recomienda el evento?</div>
+      <div class="card">
+        <div class="bar-chart">
+          ${recOpts.map((v,i)=>{const c=count('recomendar',v); const cls=['green','','orange'][i]; return `
+            <div class="bar-row">
+              <span class="bar-label">${v}</span>
+              <div class="bar-track"><div class="bar-fill ${cls}" style="width:${Math.round(c/maxRec*100)}%"></div></div>
+              <span class="bar-count">${c}</span>
+            </div>`}).join('')}
+        </div>
+      </div>
+    </div>
+
+    <!-- Respuestas textuales -->
+    <div class="section">
+      <div class="section-title">&#128172; Respuestas individuales <span style="color:var(--muted);font-weight:400;font-size:.78rem;margin-left:.5rem">${n} respuestas</span></div>
+      ${!n ? '<div class="empty-state">Sin respuestas aún.</div>' :
+        allFeedback.map(r=>`
+        <div class="response-card">
+          <div class="rc-head">
+            <div>
+              <div class="rc-name">${r.anonimo ? '👤 Anónimo' : (r.nombre_resp||'Sin nombre')}</div>
+              <div class="rc-date">${new Date(r.created_at).toLocaleString('es-CO')}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:.75rem">
+              <span class="rc-stars">${'★'.repeat(r.rating_general||0)}${'☆'.repeat(5-(r.rating_general||0))}</span>
+              <button class="btn-del-resp no-print" onclick="deleteFeedback('${r.id}')">&#128465; Eliminar</button>
+            </div>
+          </div>
+          ${r.desarrollo?`<div style="margin-bottom:.35rem"><span style="background:var(--off);border-radius:99px;padding:2px 10px;font-size:.75rem;color:var(--blue);font-weight:600">${r.desarrollo}</span></div>`:''}
+          ${r.lo_mejor?`<div class="rc-text"><strong>Lo mejor</strong>${r.lo_mejor}</div>`:''}
+          ${r.sugerencias?`<div class="rc-text"><strong>Sugerencias</strong>${r.sugerencias}</div>`:''}
+          ${r.recomendar?`<div class="rc-text" style="margin-top:.35rem"><span style="font-size:.75rem;color:var(--muted)">¿Recomienda? </span><strong style="font-size:.82rem;color:var(--blue)">${r.recomendar}</strong></div>`:''}
+        </div>`).join('')}
+    </div>`;
+}
+
+async function deleteFeedback(id){
+  if(!confirm('¿Eliminar esta respuesta?')) return;
+  await db.from('feedback').delete().eq('id',id);
+  loadDashboard();
+}
+
+function printDash(){
+  window.print();
+}
+</script>
+</body>
+</html>
