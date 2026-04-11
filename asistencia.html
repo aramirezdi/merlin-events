@@ -307,6 +307,7 @@
         <div class="toolbar no-print">
           <input type="text" class="search-input" id="search" placeholder="&#128269; Buscar por nombre o ID..." oninput="renderParticipants()">
           <button class="btn btn-blue btn-sm" onclick="openModal()">&#43; Agregar</button>
+          <button class="btn btn-outline btn-sm" id="btn-sort" onclick="toggleSort()">&#8597; A→Z</button>
           <button class="btn btn-outline btn-sm" onclick="markAll(true)">&#10003; Todos presentes</button>
           <button class="btn btn-outline btn-sm" onclick="markAll(false)">&#10007; Limpiar</button>
         </div>
@@ -478,14 +479,27 @@ async function loadParticipants(){
   updateStats();
 }
 
+let sortAlpha = false;
+function toggleSort(){
+  sortAlpha = !sortAlpha;
+  const btn = document.getElementById('btn-sort');
+  btn.textContent = sortAlpha ? '↕ Registro' : '↕ A→Z';
+  btn.classList.toggle('btn-blue', sortAlpha);
+  btn.classList.toggle('btn-outline', !sortAlpha);
+  renderParticipants();
+}
+
 function renderParticipants(){
   const q = (document.getElementById('search')?.value||'').toLowerCase();
   const tbody = document.getElementById('participants-tbody');
-  const filtered = participants.filter(p =>
+  let filtered = participants.filter(p =>
     !q ||
     p.nombre.toLowerCase().includes(q) ||
     p.apellido.toLowerCase().includes(q) ||
     (p.id_number||'').toLowerCase().includes(q)
+  );
+  if(sortAlpha) filtered = [...filtered].sort((a,b)=>
+    a.apellido.localeCompare(b.apellido,'es') || a.nombre.localeCompare(b.nombre,'es')
   );
   if(!filtered.length){
     tbody.innerHTML = `<tr><td colspan="4" class="empty-state">${participants.length ? 'Sin resultados para la búsqueda.' : 'No hay participantes. Agrega o importa desde Excel.'}</td></tr>`;
