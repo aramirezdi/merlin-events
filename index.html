@@ -292,7 +292,7 @@
           </div>
         </div>
         <div style="margin-top:1rem">
-          <button class="btn btn-blue" onclick="createEvent()">&#43; Crear evento</button>
+          <button class="btn btn-blue" onclick="crearEvento()">&#43; Crear evento</button>
         </div>
         <div class="modal-err" id="ev-err"></div>
       </div>
@@ -430,7 +430,7 @@ function renderEvents(events){
     </div>`).join('');
 }
 
-async function createEvent(){
+async function crearEvento(){
   const nombre = document.getElementById('ev-nombre').value.trim();
   if(!nombre){ document.getElementById('ev-err').textContent='⚠ El nombre es obligatorio.'; return; }
   const { error } = await db.from('events').insert([{
