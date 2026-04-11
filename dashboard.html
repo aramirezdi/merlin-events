@@ -213,8 +213,8 @@
 
 <script>
 const PASSWORD     = 'merlin.admin';
-const SUPABASE_URL = 'SUPABASE_URL_PLACEHOLDER';
-const SUPABASE_KEY = 'SUPABASE_KEY_PLACEHOLDER';
+const SUPABASE_URL = 'https://uceswdscummpokmquecs.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjZXN3ZHNjdW1tcG9rbXF1ZWNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NjQyNzEsImV4cCI6MjA5MTM0MDI3MX0.omidUnKS78E78sng3U0ozEUme3ARWcUDWlKSm59zvzQ';
 
 let db, currentTab = 'asistencia', allFeedback = [], allParticipants = [];
 
@@ -239,11 +239,14 @@ function switchTab(tab){
 }
 
 async function loadEvents(){
-  const { data } = await db.from('events').select('*').order('created_at',{ascending:false});
+  const { data, error } = await db.from('events').select('*').order('created_at',{ascending:false});
+  if(error){ alert('Error Supabase: '+error.message); return; }
   const sel = document.getElementById('event-select');
   if(!data?.length){ sel.innerHTML='<option value="">— No hay eventos —</option>'; return; }
   sel.innerHTML = '<option value="">— Selecciona un evento —</option>' +
     data.map(e=>`<option value="${e.id}">${e.nombre}${e.fecha?' · '+e.fecha:''}</option>`).join('');
+  // Auto-seleccionar el primero si solo hay uno
+  if(data.length === 1){ sel.value = data[0].id; loadDashboard(); }
 }
 
 async function loadDashboard(){
