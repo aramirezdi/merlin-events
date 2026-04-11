@@ -6,7 +6,7 @@
   <title>Merlin Events – Asistencia</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Nunito:wght@800;900&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
     :root {
@@ -230,9 +230,9 @@
 <div id="s-auth">
   <div class="auth-box">
     <div class="logo">
-      <svg width="140" height="36" viewBox="0 0 140 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <text x="0" y="28" font-family="Inter,Arial,sans-serif" font-size="30" font-weight="800" fill="#1a5fa5" letter-spacing="-1">merlin</text>
-        <circle cx="133" cy="22" r="5" fill="#e9721f"/>
+      <svg width="140" height="36" viewBox="0 0 112 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <text x="0" y="28" font-family="Nunito,Inter,Arial,sans-serif" font-size="30" font-weight="900" fill="#1a5fa5" textLength="90" lengthAdjust="spacingAndGlyphs">merlin</text>
+        <circle cx="99" cy="21" r="6" fill="#e9721f"/>
       </svg>
     </div>
     <h2>Panel de Asistencia</h2>
@@ -247,9 +247,9 @@
 <div id="s-main">
   <div class="topbar no-print">
     <div class="topbar-left">
-      <svg width="90" height="24" viewBox="0 0 140 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <text x="0" y="28" font-family="Inter,Arial,sans-serif" font-size="30" font-weight="800" fill="#ffffff" letter-spacing="-1">merlin</text>
-        <circle cx="133" cy="22" r="5" fill="#e9721f"/>
+      <svg width="90" height="24" viewBox="0 0 112 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <text x="0" y="28" font-family="Nunito,Inter,Arial,sans-serif" font-size="30" font-weight="900" fill="#ffffff" textLength="90" lengthAdjust="spacingAndGlyphs">merlin</text>
+        <circle cx="99" cy="21" r="6" fill="#e9721f"/>
       </svg>
       <div>
         <div class="topbar h1" style="font-size:.95rem;font-weight:700">Asistencia</div>
@@ -681,9 +681,9 @@ function printReport(){
   const rows = [...participants].sort((a,b)=>a.apellido.localeCompare(b.apellido));
   document.getElementById('print-sheet').innerHTML = `
     <div class="print-header">
-      <svg width="100" height="26" viewBox="0 0 140 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <text x="0" y="28" font-family="Inter,Arial,sans-serif" font-size="30" font-weight="800" fill="#1a5fa5" letter-spacing="-1">merlin</text>
-        <circle cx="133" cy="22" r="5" fill="#e9721f"/>
+      <svg width="100" height="26" viewBox="0 0 112 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <text x="0" y="28" font-family="Nunito,Inter,Arial,sans-serif" font-size="30" font-weight="900" fill="#1a5fa5" textLength="90" lengthAdjust="spacingAndGlyphs">merlin</text>
+        <circle cx="99" cy="21" r="6" fill="#e9721f"/>
       </svg>
       <div>
         <div class="print-title">${ev.nombre}</div>
