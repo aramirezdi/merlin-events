@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard – Merlin Events</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
@@ -175,6 +176,8 @@
       <h1>Dashboard de Resultados</h1>
     </div>
     <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+      <button class="btn btn-outline btn-sm" style="color:#fff;border-color:rgba(255,255,255,.4)" onclick="exportXLSX()">&#128229; Excel</button>
+      <button class="btn btn-outline btn-sm" style="color:#fff;border-color:rgba(255,255,255,.4)" onclick="exportCSV()">&#128229; CSV</button>
       <button class="btn btn-outline btn-sm" style="color:#fff;border-color:rgba(255,255,255,.4)" onclick="printDash()">&#128424; Imprimir</button>
       <button class="btn btn-outline btn-sm" style="color:rgba(255,255,255,.8);border-color:rgba(255,255,255,.3)" onclick="logout()">&#128682; Salir</button>
     </div>
@@ -413,6 +416,54 @@ async function deleteFeedback(id){
   if(!confirm('¿Eliminar esta respuesta?')) return;
   await db.from('feedback').delete().eq('id',id);
   loadDashboard();
+}
+
+function getEventName(){
+  return document.getElementById('event-select').selectedOptions[0]?.text || 'evento';
+}
+
+function getExportRows(){
+  if(currentTab === 'asistencia'){
+    return {
+      headers: ['#','Apellido','Nombre','N° Identificación','Asistencia'],
+      rows: allParticipants.map((p,i) => [i+1, p.apellido, p.nombre, p.id_number||'', p.present?'Presente':'Ausente'])
+    };
+  } else {
+    return {
+      headers: ['Nombre','Anónimo','Fecha','Rating General','Rating Expositor','Rating Tema','Desarrollo','Lo mejor','Sugerencias','Recomienda'],
+      rows: allFeedback.map(r => [
+        r.anonimo ? 'Anónimo' : (r.nombre_resp||''),
+        r.anonimo ? 'Sí' : 'No',
+        new Date(r.created_at).toLocaleString('es-CO'),
+        r.rating_general||'', r.rating_expositor||'', r.rating_tema||'',
+        r.desarrollo||'', r.lo_mejor||'', r.sugerencias||'', r.recomendar||''
+      ])
+    };
+  }
+}
+
+function exportXLSX(){
+  const eid = document.getElementById('event-select').value;
+  if(!eid){ alert('Selecciona un evento primero.'); return; }
+  const { headers, rows } = getExportRows();
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, currentTab === 'asistencia' ? 'Asistencia' : 'Encuesta');
+  const fname = `${getEventName()}_${currentTab}_${new Date().toISOString().slice(0,10)}.xlsx`;
+  XLSX.writeFile(wb, fname);
+}
+
+function exportCSV(){
+  const eid = document.getElementById('event-select').value;
+  if(!eid){ alert('Selecciona un evento primero.'); return; }
+  const { headers, rows } = getExportRows();
+  const escape = v => `"${String(v).replace(/"/g,'""')}"`;
+  const csv = [headers, ...rows].map(r => r.map(escape).join(',')).join('\r\n');
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${getEventName()}_${currentTab}_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
 }
 
 function printDash(){

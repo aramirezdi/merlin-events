@@ -310,6 +310,8 @@
           <button class="btn btn-outline btn-sm" id="btn-sort" onclick="toggleSort()">&#8597; A→Z</button>
           <button class="btn btn-outline btn-sm" onclick="markAll(true)">&#10003; Todos presentes</button>
           <button class="btn btn-outline btn-sm" onclick="markAll(false)">&#10007; Limpiar</button>
+          <button class="btn btn-outline btn-sm" onclick="exportAsistenciaXLSX()">&#128229; Excel</button>
+          <button class="btn btn-outline btn-sm" onclick="exportAsistenciaCSV()">&#128229; CSV</button>
         </div>
         <div class="card" style="padding:0;overflow:hidden">
           <table class="participants-table">
@@ -715,6 +717,35 @@ function printReport(){
 
 // Drag & drop en upload zone
 const zone = document.getElementById('upload-zone');
+function getAsistenciaRows(){
+  const sorted = [...participants].sort((a,b) => a.apellido.localeCompare(b.apellido,'es') || a.nombre.localeCompare(b.nombre,'es'));
+  return {
+    headers: ['#','Apellido','Nombre','N° Identificación','Asistencia'],
+    rows: sorted.map((p,i) => [i+1, p.apellido, p.nombre, p.id_number||'', p.present?'Presente':'Ausente'])
+  };
+}
+
+function exportAsistenciaXLSX(){
+  if(!currentEvent){ alert('Selecciona un evento primero.'); return; }
+  const { headers, rows } = getAsistenciaRows();
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Asistencia');
+  XLSX.writeFile(wb, `${currentEvent.nombre}_asistencia_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+function exportAsistenciaCSV(){
+  if(!currentEvent){ alert('Selecciona un evento primero.'); return; }
+  const { headers, rows } = getAsistenciaRows();
+  const escape = v => `"${String(v).replace(/"/g,'""')}"`;
+  const csv = [headers, ...rows].map(r => r.map(escape).join(',')).join('\r\n');
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${currentEvent.nombre}_asistencia_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
 zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor='var(--blue)'; });
 zone.addEventListener('dragleave', () => { zone.style.borderColor=''; });
 zone.addEventListener('drop', e => {
