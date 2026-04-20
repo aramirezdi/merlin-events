@@ -345,12 +345,23 @@
           border:1.5px solid var(--border);border-radius:9px;padding:.55rem .9rem;font-size:.88rem;outline:none">
           <option value="">— Seleccionar evento —</option>
         </select>
-        <button class="btn btn-ghost btn-sm" onclick="exportRegistros()">⬇ Excel</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportRegistros()">⬇ Excel (todo)</button>
       </div>
-      <div style="margin-bottom:.75rem">
-        <input type="text" id="reg-search" placeholder="Buscar por nombre, email o documento…"
-               style="max-width:320px;border:1.5px solid var(--border);border-radius:9px;padding:.55rem .9rem;font-size:.88rem;outline:none"
-               oninput="renderRegistros()">
+      <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-bottom:.75rem">
+        <input type="text" id="reg-search" placeholder="Buscar por nombre, documento…"
+               style="flex:1;max-width:320px;border:1.5px solid var(--border);border-radius:9px;padding:.55rem .9rem;font-size:.88rem;outline:none"
+               oninput="onSearchInput()">
+        <span id="reg-total-info" class="text-muted"></span>
+      </div>
+      <div id="reg-pagination" style="display:none;margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" id="btn-prev" onclick="cambiarPagina(-1)">← Anterior</button>
+        <span id="pag-info" class="text-muted" style="font-size:.82rem"></span>
+        <button class="btn btn-ghost btn-sm" id="btn-next" onclick="cambiarPagina(1)">Siguiente →</button>
+        <select id="pag-size" onchange="onPageSizeChange()" style="border:1.5px solid var(--border);border-radius:9px;padding:.4rem .7rem;font-size:.82rem;outline:none">
+          <option value="50">50 / página</option>
+          <option value="100">100 / página</option>
+          <option value="200">200 / página</option>
+        </select>
       </div>
       <div class="table-wrap">
         <table>
@@ -449,6 +460,8 @@ const SUPABASE_URL = 'https://uceswdscummpokmquecs.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjZXN3ZHNjdW1tcG9rbXF1ZWNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NjQyNzEsImV4cCI6MjA5MTM0MDI3MX0.omidUnKS78E78sng3U0ozEUme3ARWcUDWlKSm59zvzQ';
 const PASSWORD = 'merlin.admin';
 let db, eventos = [], registros = [], camposPersonalizados = [];
+const PAGE_SIZE = 50;
+let _regPage = 0, _regTotal = 0, _regEventoId = null, _searchTimer = null;
 
 // ── AUTH ──
 function checkAuth() {
@@ -685,26 +698,65 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 //  REGISTROS
 // ═══════════════════════════════════════════════
 document.getElementById('reg-evento-select').addEventListener('change', async function() {
-  if (!this.value) { registros = []; renderRegistros(); return; }
-  await cargarRegistros(this.value);
+  _regPage = 0;
+  _regEventoId = this.value || null;
+  if (!_regEventoId) { registros = []; renderRegistros(); renderPaginacion(); return; }
+  await cargarRegistros(_regEventoId, _regPage);
 });
 
-async function cargarRegistros(eventoId) {
-  // Cargar de participants (todos) y enriquecer con datos de registrations si existen
-  const { data: parts } = await db.from('participants').select('*').eq('event_id', eventoId).order('created_at');
-  const { data: regs }  = await db.from('registrations').select('*').eq('event_id', eventoId);
+function onSearchInput() {
+  clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(() => { _regPage = 0; if (_regEventoId) cargarRegistros(_regEventoId, 0); else renderRegistros(); }, 350);
+}
 
+function onPageSizeChange() {
+  _regPage = 0;
+  if (_regEventoId) cargarRegistros(_regEventoId, 0);
+}
+
+function cambiarPagina(delta) {
+  const ps = parseInt(document.getElementById('pag-size').value);
+  const totalPages = Math.ceil(_regTotal / ps);
+  _regPage = Math.max(0, Math.min(_regPage + delta, totalPages - 1));
+  if (_regEventoId) cargarRegistros(_regEventoId, _regPage);
+}
+
+async function cargarRegistros(eventoId, page = 0) {
+  const ps = parseInt(document.getElementById('pag-size').value) || PAGE_SIZE;
+  const q  = document.getElementById('reg-search').value.trim();
+  const from = page * ps, to = from + ps - 1;
+
+  // Query paginada sobre participants con búsqueda server-side
+  let query = db.from('participants')
+    .select('*', { count: 'exact' })
+    .eq('event_id', eventoId)
+    .order('created_at', { ascending: false })
+    .range(from, to);
+
+  if (q) {
+    query = query.or(`nombre.ilike.%${q}%,apellido.ilike.%${q}%,id_number.ilike.%${q}%`);
+  }
+
+  const { data: parts, count } = await query;
+  _regTotal = count || 0;
+
+  // Enriquecer solo los registros de la página actual
+  const idNumbers = (parts || []).map(p => p.id_number).filter(Boolean);
   const regsMap = {};
-  (regs || []).forEach(r => { regsMap[r.numero_documento] = r; });
+  if (idNumbers.length) {
+    const { data: regs } = await db.from('registrations')
+      .select('*').eq('event_id', eventoId).in('numero_documento', idNumbers);
+    (regs || []).forEach(r => { regsMap[r.numero_documento] = r; });
+  }
 
   registros = (parts || []).map(p => {
     const r = regsMap[p.id_number] || {};
     return {
       _pid:            p.id,
       _regId:          r.id || null,
-      nombres:         r.nombres  || p.nombre  || '',
-      apellidos:       r.apellidos|| p.apellido || '',
-      tipo_documento:  r.tipo_documento || '—',
+      nombres:         r.nombres   || p.nombre   || '',
+      apellidos:       r.apellidos || p.apellido  || '',
+      tipo_documento:  r.tipo_documento  || '—',
       numero_documento:r.numero_documento || p.id_number || '—',
       email:           r.email    || '—',
       celular_codigo:  r.celular_codigo  || '',
@@ -717,42 +769,55 @@ async function cargarRegistros(eventoId) {
       _desde_form:     !!r.email,
     };
   });
+
   renderRegistros();
+  renderPaginacion(ps, page);
+}
+
+function renderPaginacion(ps, page) {
+  const wrap = document.getElementById('reg-pagination');
+  const info = document.getElementById('pag-info');
+  const prev = document.getElementById('btn-prev');
+  const next = document.getElementById('btn-next');
+  const totalInfo = document.getElementById('reg-total-info');
+
+  totalInfo.textContent = _regTotal ? `${_regTotal.toLocaleString()} registros` : '';
+
+  if (!_regEventoId || _regTotal === 0) { wrap.style.display = 'none'; return; }
+  const totalPages = Math.ceil(_regTotal / ps);
+  wrap.style.display = 'flex';
+  info.textContent   = `Página ${page + 1} de ${totalPages}`;
+  prev.disabled      = page === 0;
+  next.disabled      = page >= totalPages - 1;
 }
 
 function renderRegistros() {
-  const q     = document.getElementById('reg-search').value.toLowerCase();
   const tbody = document.getElementById('reg-tbody');
   const empty = document.getElementById('reg-empty');
+  const ps    = parseInt(document.getElementById('pag-size').value) || PAGE_SIZE;
 
-  const filtered = registros.filter(r =>
-    !q ||
-    `${r.nombres} ${r.apellidos}`.toLowerCase().includes(q) ||
-    (r.email || '').toLowerCase().includes(q) ||
-    (r.numero_documento || '').toLowerCase().includes(q)
-  );
-
-  if (!document.getElementById('reg-evento-select').value) {
+  if (!_regEventoId) {
     tbody.innerHTML = '';
     empty.textContent = 'Selecciona un evento para ver sus registros.';
     empty.style.display = 'block'; return;
   }
-  if (!filtered.length) {
+  if (!registros.length) {
     tbody.innerHTML = '';
-    empty.textContent = registros.length ? 'No hay resultados para la búsqueda.' : 'No hay registros para este evento.';
+    empty.textContent = 'No hay registros para este evento o búsqueda.';
     empty.style.display = 'block'; return;
   }
   empty.style.display = 'none';
 
   tbody.innerHTML = '';
-  filtered.forEach((r, i) => {
+  const offset = _regPage * ps;
+  registros.forEach((r, i) => {
     const tr = document.createElement('tr');
     const fecha = r.created_at ? new Date(r.created_at).toLocaleDateString('es-PE') : '—';
     const fuente = r._desde_form
       ? '<span class="badge badge-green" title="Registrado vía formulario">Formulario</span>'
       : '<span class="badge badge-gray" title="Añadido manualmente">Manual</span>';
     tr.innerHTML = `
-      <td>${i + 1}</td>
+      <td>${offset + i + 1}</td>
       <td>${r.nombres} ${fuente}</td>
       <td>${r.apellidos}</td>
       <td><span class="text-muted">${r.tipo_documento}</span> ${r.numero_documento}</td>
@@ -769,41 +834,56 @@ function renderRegistros() {
 
 async function eliminarRegistrado(pid, regId) {
   if (!confirm('¿Eliminar este registro? Se eliminará de participantes y del formulario.')) return;
-  const eventoId = document.getElementById('reg-evento-select').value;
-  if (regId && regId !== 'null') {
-    await db.from('registrations').delete().eq('id', regId);
-  }
+  if (regId && regId !== 'null') await db.from('registrations').delete().eq('id', regId);
   await db.from('attendance').delete().eq('participant_id', pid);
   await db.from('participants').delete().eq('id', pid);
   toast('Registro eliminado');
-  await cargarRegistros(eventoId);
+  _regTotal--;
+  await cargarRegistros(_regEventoId, _regPage);
 }
 
-// ── Exportar ──
-function exportRegistros() {
-  if (!registros.length) { toast('No hay registros para exportar'); return; }
-  const rows = registros.map((r, i) => ({
-    '#':              i + 1,
-    'Nombres':        r.nombres,
-    'Apellidos':      r.apellidos,
-    'Tipo Doc.':      r.tipo_documento || '',
-    'N° Documento':   r.numero_documento || '',
-    'Email':          r.email,
-    'Código Celular': r.celular_codigo || '',
-    'Celular':        r.celular || '',
-    'Código WA':      r.whatsapp_codigo || '',
-    'WhatsApp':       r.whatsapp || '',
-    'País procedencia': r.pais_procedencia || '',
-    'País residencia':  r.pais_residencia || '',
-    'Fecha nac.':     r.fecha_nacimiento || '',
-    'Género':         r.genero || '',
-    'Email enviado':  r.email_enviado ? 'Sí' : 'No',
-    'Registro':       r.created_at ? new Date(r.created_at).toLocaleString('es-PE') : '',
-  }));
+// ── Exportar TODOS los registros (no solo la página actual) ──
+async function exportRegistros() {
+  if (!_regEventoId) { toast('Selecciona un evento primero'); return; }
+  toast('Preparando Excel… puede tomar unos segundos');
+
+  const { data: parts } = await db.from('participants')
+    .select('*').eq('event_id', _regEventoId).order('created_at', { ascending: false });
+
+  if (!parts || !parts.length) { toast('No hay registros para exportar'); return; }
+
+  // Cargar todas las registrations de este evento
+  const { data: regs } = await db.from('registrations').select('*').eq('event_id', _regEventoId);
+  const regsMap = {};
+  (regs || []).forEach(r => { regsMap[r.numero_documento] = r; });
+
+  const rows = parts.map((p, i) => {
+    const r = regsMap[p.id_number] || {};
+    return {
+      '#':              i + 1,
+      'Nombres':        r.nombres   || p.nombre   || '',
+      'Apellidos':      r.apellidos || p.apellido  || '',
+      'Tipo Doc.':      r.tipo_documento  || '',
+      'N° Documento':   r.numero_documento || p.id_number || '',
+      'Email':          r.email    || '',
+      'Código Celular': r.celular_codigo  || '',
+      'Celular':        r.celular  || '',
+      'Código WA':      r.whatsapp_codigo || '',
+      'WhatsApp':       r.whatsapp || '',
+      'País procedencia': r.pais_procedencia || '',
+      'País residencia':  r.pais_residencia  || '',
+      'Fecha nac.':     r.fecha_nacimiento  || '',
+      'Género':         r.genero   || '',
+      'Email enviado':  r.email_enviado ? 'Sí' : 'No',
+      'Fuente':         r.email ? 'Formulario' : 'Manual',
+      'Registro':       p.created_at ? new Date(p.created_at).toLocaleString('es-PE') : '',
+    };
+  });
   const ws = XLSX.utils.json_to_sheet(rows);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Registrados');
   XLSX.writeFile(wb, `registrados_${Date.now()}.xlsx`);
+  toast(`✓ Excel exportado (${rows.length} registros)`);
 }
 
 // ═══════════════════════════════════════════════
@@ -848,51 +928,78 @@ async function enviarMasivo() {
 
   const ev = eventos.find(e => e.id === eventoId);
 
-  const { data: regs } = await db.from('registrations')
-    .select('id, nombres, apellidos, email')
-    .eq('event_id', eventoId)
-    .not('email', 'is', null);
-
-  if (!regs || !regs.length) return toast('No hay participantes con email en este evento. Solo los registrados vía formulario tienen email.');
-
-  const confirmMsg = `Se enviarán ${regs.length} correos. ¿Continuar?`;
-  if (!confirm(confirmMsg)) return;
-
-  const btn    = document.getElementById('btn-send-bulk');
+  // Cargar TODOS los registros con email (paginado internamente)
   const status = document.getElementById('email-status');
+  status.textContent = 'Cargando lista de destinatarios…';
+  status.style.color = 'var(--muted)';
+
+  let allRegs = [], from = 0;
+  while (true) {
+    const { data } = await db.from('registrations')
+      .select('id, nombres, apellidos, email')
+      .eq('event_id', eventoId)
+      .not('email', 'is', null)
+      .range(from, from + 999);
+    if (!data || !data.length) break;
+    allRegs = allRegs.concat(data);
+    if (data.length < 1000) break;
+    from += 1000;
+  }
+
+  if (!allRegs.length) return toast('No hay participantes con email en este evento.');
+
+  if (!confirm(`Se enviarán ${allRegs.length.toLocaleString()} correos en lotes de 100. ¿Continuar?`)) return;
+
+  const btn = document.getElementById('btn-send-bulk');
   btn.disabled = true;
-  status.textContent = 'Enviando…';
 
-  const recipients = regs.map(r => ({
-    nombres:    r.nombres,
-    apellidos:  r.apellidos,
-    email:      r.email,
-    evento:     ev ? ev.nombre : '',
-  }));
+  const BATCH = 100;
+  let totalOk = 0, totalErr = 0;
+  const sentIds = [];
 
-  const res = await fetch('/api/send-bulk-email', {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ recipients, subject: asunto, html_template: html }),
-  });
-  const d = await res.json();
+  for (let i = 0; i < allRegs.length; i += BATCH) {
+    const batch = allRegs.slice(i, i + BATCH);
+    const recipients = batch.map(r => ({
+      nombres:   r.nombres,
+      apellidos: r.apellidos,
+      email:     r.email,
+      evento:    ev ? ev.nombre : '',
+    }));
 
-  if (d.error) {
-    status.textContent = 'Error: ' + d.error;
-    status.style.color = 'var(--red)';
-  } else {
-    status.textContent = `✓ Enviados: ${d.ok}   ✗ Fallidos: ${d.err}`;
-    status.style.color = d.err === 0 ? 'var(--green)' : 'var(--orange)';
+    status.textContent = `Enviando lote ${Math.floor(i/BATCH)+1} de ${Math.ceil(allRegs.length/BATCH)} (${i + batch.length}/${allRegs.length})…`;
 
-    // Marcar como email_enviado en Supabase
-    const sentIds = d.results.filter(r => r.ok).map(r => r.email);
-    for (const reg of regs) {
-      if (sentIds.includes(reg.email)) {
-        await db.from('registrations').update({ email_enviado: true }).eq('id', reg.id);
+    try {
+      const res = await fetch('/api/send-bulk-email', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ recipients, subject: asunto, html_template: html }),
+      });
+      const d = await res.json();
+      if (!d.error) {
+        totalOk  += d.ok  || 0;
+        totalErr += d.err || 0;
+        (d.results || []).filter(r => r.ok).forEach(r => sentIds.push(r.email));
+      } else {
+        totalErr += batch.length;
       }
+    } catch (e) {
+      totalErr += batch.length;
+    }
+
+    // Marcar como enviado en Supabase por lote
+    const batchSentIds = sentIds.slice(-totalOk);
+    const batchSent = batch.filter(r => sentIds.includes(r.email));
+    for (const reg of batchSent) {
+      await db.from('registrations').update({ email_enviado: true }).eq('id', reg.id);
+    }
+
+    if (i + BATCH < allRegs.length) {
+      await new Promise(r => setTimeout(r, 300));
     }
   }
 
+  status.textContent = `✓ Completado — Enviados: ${totalOk.toLocaleString()}   ✗ Fallidos: ${totalErr}`;
+  status.style.color = totalErr === 0 ? 'var(--green)' : 'var(--orange)';
   btn.disabled = false;
 }
 
