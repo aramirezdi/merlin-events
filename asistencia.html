@@ -635,17 +635,26 @@ function previewImport(rows){
   // Mapear columnas flexiblemente
   importRows = rows.map(r => {
     const keys = Object.keys(r);
+    const norm = s => s.toLowerCase().replace(/[\s°#]/g,'');
     const find = (...names) => {
-      for(const n of names){
-        const k = keys.find(k=>k.toLowerCase().replace(/\s/g,'').includes(n.toLowerCase()));
-        if(k && r[k]) return String(r[k]).trim();
+      for(const pass of ['exact','start','include']){
+        for(const n of names){
+          const k = keys.find(k => {
+            const kn = norm(k);
+            if(pass==='exact')   return kn === norm(n);
+            if(pass==='start')   return kn.startsWith(norm(n));
+            if(pass==='include') return kn.includes(norm(n));
+          });
+          if(k !== undefined && r[k] !== '' && r[k] !== null && r[k] !== undefined)
+            return String(r[k]).trim();
+        }
       }
       return '';
     };
     return {
-      nombre:    find('nombre','name','first'),
+      nombre:    find('nombre','firstname','name','first'),
       apellido:  find('apellido','lastname','surname','last'),
-      id_number: find('id','cedula','documento','identification','numero')
+      id_number: find('nid','cedula','documento','identificacion','identification','numid','numero')
     };
   }).filter(r => r.nombre || r.apellido);
 
