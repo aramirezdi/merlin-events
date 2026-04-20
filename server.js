@@ -97,16 +97,19 @@ app.post('/api/send-bulk-email', async (req, res) => {
 
   const results = [];
   for (const r of recipients) {
-    const personalizedHtml = html_template
-      .replace(/\{\{nombres\}\}/g,   r.nombres   || '')
-      .replace(/\{\{apellidos\}\}/g, r.apellidos || '')
-      .replace(/\{\{email\}\}/g,     r.email     || '')
-      .replace(/\{\{evento\}\}/g,    r.evento    || '');
+    const vars = [
+      [/\{\{nombres\}\}/g,   r.nombres   || ''],
+      [/\{\{apellidos\}\}/g, r.apellidos || ''],
+      [/\{\{email\}\}/g,     r.email     || ''],
+      [/\{\{evento\}\}/g,    r.evento    || ''],
+    ];
+    const personalizedHtml    = vars.reduce((s, [re, v]) => s.replace(re, v), html_template);
+    const personalizedSubject = vars.reduce((s, [re, v]) => s.replace(re, v), subject);
     try {
       const resp = await fetch(`${MDT_URL}/api/zepto-send`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', 'X-Session-Token': token },
-        body:    JSON.stringify({ to_email: r.email, to_name: `${r.nombres} ${r.apellidos}`, subject, html: personalizedHtml })
+        body:    JSON.stringify({ to_email: r.email, to_name: `${r.nombres} ${r.apellidos}`, subject: personalizedSubject, html: personalizedHtml })
       });
       const d = await resp.json();
       results.push({ email: r.email, ok: !d.error, detail: d });
