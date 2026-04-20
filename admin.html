@@ -366,6 +366,7 @@
               <th>País</th>
               <th>Email enviado</th>
               <th>Fecha registro</th>
+              <th></th>
             </tr>
           </thead>
           <tbody id="reg-tbody"></tbody>
@@ -700,6 +701,7 @@ async function cargarRegistros(eventoId) {
     const r = regsMap[p.id_number] || {};
     return {
       _pid:            p.id,
+      _regId:          r.id || null,
       nombres:         r.nombres  || p.nombre  || '',
       apellidos:       r.apellidos|| p.apellido || '',
       tipo_documento:  r.tipo_documento || '—',
@@ -759,9 +761,22 @@ function renderRegistros() {
       <td>${r.whatsapp_codigo} ${r.whatsapp}</td>
       <td>${r.pais_residencia}</td>
       <td><span class="badge ${r.email_enviado ? 'badge-green' : 'badge-gray'}">${r.email_enviado ? 'Enviado' : 'Pendiente'}</span></td>
-      <td>${fecha}</td>`;
+      <td>${fecha}</td>
+      <td><button class="btn btn-red btn-sm" onclick="eliminarRegistrado('${r._pid}','${r._regId}')">🗑</button></td>`;
     tbody.appendChild(tr);
   });
+}
+
+async function eliminarRegistrado(pid, regId) {
+  if (!confirm('¿Eliminar este registro? Se eliminará de participantes y del formulario.')) return;
+  const eventoId = document.getElementById('reg-evento-select').value;
+  if (regId && regId !== 'null') {
+    await db.from('registrations').delete().eq('id', regId);
+  }
+  await db.from('attendance').delete().eq('participant_id', pid);
+  await db.from('participants').delete().eq('id', pid);
+  toast('Registro eliminado');
+  await cargarRegistros(eventoId);
 }
 
 // ── Exportar ──
