@@ -309,7 +309,8 @@
           <button class="btn btn-blue btn-sm" onclick="openModal()">&#43; Agregar</button>
           <button class="btn btn-outline btn-sm" id="btn-sort" onclick="toggleSort()">&#8597; A→Z</button>
           <button class="btn btn-outline btn-sm" onclick="markAll(true)">&#10003; Todos presentes</button>
-          <button class="btn btn-outline btn-sm" onclick="markAll(false)">&#10007; Limpiar</button>
+          <button class="btn btn-outline btn-sm" onclick="markAll(false)">&#10007; Limpiar asistencia</button>
+          <button class="btn btn-outline btn-sm" style="color:var(--red);border-color:var(--red)" onclick="eliminarTodos()">&#128465; Eliminar todos</button>
           <button class="btn btn-outline btn-sm" onclick="exportAsistenciaXLSX()">&#128229; Excel</button>
           <button class="btn btn-outline btn-sm" onclick="exportAsistenciaCSV()">&#128229; CSV</button>
         </div>
@@ -546,6 +547,17 @@ async function toggleAttendance(pid){
     row.querySelector('.check-box').textContent = p.present?'✓':'';
     row.querySelector('.p-name') && (row.querySelector('.p-name').style.color = p.present?'var(--green)':'');
   }
+  updateStats();
+}
+
+async function eliminarTodos(){
+  if(!currentEvent) return;
+  if(!participants.length){ alert('No hay participantes para eliminar.'); return; }
+  if(!confirm(`¿Eliminar los ${participants.length} participantes del evento "${currentEvent.nombre}"? Esta acción no se puede deshacer.`)) return;
+  await db.from('attendance').delete().eq('event_id', currentEvent.id);
+  await db.from('participants').delete().eq('event_id', currentEvent.id);
+  participants = [];
+  renderParticipants();
   updateStats();
 }
 
