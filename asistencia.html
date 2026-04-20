@@ -261,6 +261,7 @@
       <button class="tab active" id="btn-tab-eventos"      onclick="switchTab('eventos')">&#128197; Eventos</button>
       <button class="tab"        id="btn-tab-participants" onclick="switchTab('participants')">&#9989; Asistencia</button>
       <button class="tab"        id="btn-tab-import"       onclick="switchTab('import')">&#128196; Importar Excel</button>
+      <button class="tab"        id="btn-tab-copiar"       onclick="switchTab('copiar')">&#128203; Copiar de otro evento</button>
     </div>
 
     <!-- TAB EVENTOS -->
@@ -326,6 +327,32 @@
             </thead>
             <tbody id="participants-tbody"></tbody>
           </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB COPIAR -->
+    <div id="tab-copiar" style="display:none">
+      <div class="card">
+        <h3>&#128203; Copiar participantes de otro evento</h3>
+        <div id="copiar-no-event" style="color:var(--muted);font-size:.9rem;margin-bottom:1rem">
+          &#9888; Selecciona primero el evento <strong>destino</strong> en la pestaña <strong>Eventos</strong>.
+        </div>
+        <div id="copiar-panel" style="display:none">
+          <p style="font-size:.9rem;color:var(--muted);margin-bottom:1rem">
+            Evento destino: <strong id="copiar-destino-nombre" style="color:var(--blue)"></strong>
+          </p>
+          <div class="form-group" style="max-width:420px;margin-bottom:1rem">
+            <label>Selecciona el evento origen (programa o evento del que jalar la data)</label>
+            <select id="copiar-origen-select" style="border:1.5px solid var(--border);border-radius:9px;padding:.65rem .9rem;font-size:.88rem;outline:none;width:100%">
+              <option value="">— Seleccionar evento origen —</option>
+            </select>
+          </div>
+          <div id="copiar-preview" style="display:none;margin-bottom:1rem">
+            <p id="copiar-preview-info" style="font-size:.88rem;color:var(--muted);margin-bottom:.5rem"></p>
+          </div>
+          <button class="btn btn-blue" onclick="copiarParticipantes()" id="btn-copiar">&#128203; Copiar participantes</button>
+          <p id="copiar-status" style="margin-top:.75rem;font-size:.88rem"></p>
         </div>
       </div>
     </div>
@@ -398,11 +425,12 @@ document.getElementById('pwd').addEventListener('keydown', e => { if(e.key==='En
 
 /* ── TABS ── */
 function switchTab(tab){
-  ['eventos','participants','import'].forEach(t => {
+  ['eventos','participants','import','copiar'].forEach(t => {
     document.getElementById('tab-'+t).style.display = t===tab ? 'block' : 'none';
     document.getElementById('btn-tab-'+t).classList.toggle('active', t===tab);
   });
   if(tab === 'participants') renderParticipants();
+  if(tab === 'copiar') initCopiarTab();
 }
 
 /* ── EVENTS ── */
@@ -774,6 +802,109 @@ zone.addEventListener('drop', e => {
   const file = e.dataTransfer.files[0];
   if(file){ const dt = new DataTransfer(); dt.items.add(file); document.getElementById('file-input').files = dt.files; handleFile({target:{files:[file]}}); }
 });
+
+/* ── COPIAR PARTICIPANTES DE OTRO EVENTO ── */
+async function initCopiarTab() {
+  const noEvEl   = document.getElementById('copiar-no-event');
+  const panelEl  = document.getElementById('copiar-panel');
+  const statusEl = document.getElementById('copiar-status');
+
+  statusEl.textContent = '';
+  document.getElementById('copiar-preview').style.display = 'none';
+
+  if (!currentEvent) {
+    noEvEl.style.display  = 'block';
+    panelEl.style.display = 'none';
+    return;
+  }
+  noEvEl.style.display  = 'none';
+  panelEl.style.display = 'block';
+  document.getElementById('copiar-destino-nombre').textContent = currentEvent.nombre;
+
+  // Poblar selector con todos los eventos excepto el actual
+  const { data: evs } = await db.from('events').select('id, nombre').order('created_at', { ascending: false });
+  const sel = document.getElementById('copiar-origen-select');
+  sel.innerHTML = '<option value="">— Seleccionar evento origen —</option>';
+  (evs || []).filter(e => e.id !== currentEvent.id).forEach(e => {
+    const o = document.createElement('option');
+    o.value = e.id; o.textContent = e.nombre;
+    sel.appendChild(o);
+  });
+}
+
+document.addEventListener('change', async function(e) {
+  if (e.target.id !== 'copiar-origen-select') return;
+  const origenId = e.target.value;
+  const previewEl = document.getElementById('copiar-preview');
+  const infoEl    = document.getElementById('copiar-preview-info');
+  if (!origenId) { previewEl.style.display = 'none'; return; }
+  const { count } = await db.from('participants').select('id', { count: 'exact', head: true }).eq('event_id', origenId);
+  infoEl.textContent = `Este evento tiene ${count || 0} participante(s) que se copiarán al evento destino.`;
+  previewEl.style.display = 'block';
+});
+
+async function copiarParticipantes() {
+  const origenId = document.getElementById('copiar-origen-select').value;
+  const statusEl = document.getElementById('copiar-status');
+  const btn      = document.getElementById('btn-copiar');
+
+  if (!origenId)     { statusEl.textContent = '⚠ Selecciona un evento origen.'; return; }
+  if (!currentEvent) { statusEl.textContent = '⚠ No hay evento destino seleccionado.'; return; }
+
+  if (!confirm(`¿Copiar todos los participantes al evento "${currentEvent.nombre}"? Los duplicados (mismo documento) serán ignorados.`)) return;
+
+  btn.disabled = true;
+  statusEl.style.color = 'var(--muted)';
+  statusEl.textContent = 'Copiando…';
+
+  // Cargar participantes del origen (paginado por si son muchos)
+  let allParts = [], from = 0;
+  while (true) {
+    const { data } = await db.from('participants').select('*').eq('event_id', origenId).range(from, from + 999);
+    if (!data || !data.length) break;
+    allParts = allParts.concat(data);
+    if (data.length < 1000) break;
+    from += 1000;
+  }
+
+  if (!allParts.length) {
+    statusEl.textContent = 'El evento origen no tiene participantes.';
+    btn.disabled = false; return;
+  }
+
+  // Obtener documentos ya existentes en el destino para evitar duplicados
+  const { data: existentes } = await db.from('participants').select('id_number').eq('event_id', currentEvent.id);
+  const docsExistentes = new Set((existentes || []).map(p => p.id_number).filter(Boolean));
+
+  const nuevos = allParts
+    .filter(p => !docsExistentes.has(p.id_number))
+    .map(p => ({
+      event_id:  currentEvent.id,
+      nombre:    p.nombre,
+      apellido:  p.apellido,
+      id_number: p.id_number,
+    }));
+
+  if (!nuevos.length) {
+    statusEl.style.color = 'var(--orange)';
+    statusEl.textContent = `Todos los ${allParts.length} participantes ya existen en este evento.`;
+    btn.disabled = false; return;
+  }
+
+  // Insertar en lotes de 500
+  let insertados = 0;
+  for (let i = 0; i < nuevos.length; i += 500) {
+    const { error } = await db.from('participants').insert(nuevos.slice(i, i + 500));
+    if (!error) insertados += Math.min(500, nuevos.length - i);
+  }
+
+  statusEl.style.color = 'var(--green)';
+  const omitidos = allParts.length - nuevos.length;
+  statusEl.textContent = `✓ ${insertados} participantes copiados correctamente.${omitidos ? ` (${omitidos} ya existían y fueron ignorados)` : ''}`;
+
+  await loadParticipants(currentEvent.id);
+  btn.disabled = false;
+}
 </script>
 </body>
 </html>
