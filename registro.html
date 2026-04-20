@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Registro – Merlin Events</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --blue:#1a5fa5; --blue2:#14508e; --blue3:#0f3d6e;
+      --orange:#e9721f; --white:#fff; --off:#f0f5fb;
+      --muted:#7a98bb; --text:#1a2a3a; --border:#c5d8ee;
+      --green:#1a9a4a; --red:#d93025;
+    }
+    html, body { min-height:100vh; font-family:'Inter',sans-serif; background:var(--off); color:var(--text); }
+
+    /* ── HEADER ── */
+    .page-header {
+      background: linear-gradient(135deg, var(--blue3) 0%, var(--blue) 60%, #2272c3 100%);
+      padding: 0;
+      text-align: center;
+      position: relative;
+    }
+    .banner-img {
+      width: 100%; max-height: 340px; object-fit: cover; display: block;
+    }
+    .header-overlay {
+      padding: 2rem 1.5rem 1.5rem;
+    }
+    .header-overlay .logo { height: 44px; margin-bottom: 1rem; }
+    .header-overlay h1 {
+      font-size: clamp(1.3rem, 4vw, 2rem); font-weight: 800; color: #fff;
+      letter-spacing: -.02em; line-height: 1.2;
+    }
+    .event-meta {
+      display: flex; flex-wrap: wrap; gap: .5rem .75rem;
+      justify-content: center; margin-top: .75rem;
+    }
+    .meta-chip {
+      background: rgba(255,255,255,.18); color: #fff;
+      border-radius: 99px; padding: .25rem .85rem;
+      font-size: .78rem; font-weight: 500;
+    }
+
+    /* ── LOADING / ERROR ── */
+    #page-loading, #page-error {
+      min-height: 60vh; display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 1rem; padding: 2rem;
+    }
+    #page-error { color: var(--red); }
+
+    /* ── FORM ── */
+    .form-wrap {
+      max-width: 720px; margin: 2rem auto; padding: 0 1.25rem 3rem;
+    }
+    .form-card {
+      background: #fff; border-radius: 18px;
+      box-shadow: 0 4px 24px rgba(0,0,0,.1);
+      padding: 2.25rem 2rem;
+    }
+    @media(max-width:520px){ .form-card { padding: 1.5rem 1.15rem; } }
+
+    .section-title {
+      font-size: .72rem; font-weight: 700; color: var(--blue);
+      text-transform: uppercase; letter-spacing: .08em;
+      border-bottom: 2px solid var(--off);
+      padding-bottom: .5rem; margin: 1.75rem 0 1.1rem;
+    }
+    .section-title:first-of-type { margin-top: 0; }
+
+    .form-grid {
+      display: grid; gap: .9rem;
+      grid-template-columns: 1fr 1fr;
+    }
+    @media(max-width:500px){ .form-grid { grid-template-columns: 1fr; } }
+    .col-full { grid-column: 1 / -1; }
+
+    label { display: block; font-size: .82rem; font-weight: 600; margin-bottom: .35rem; color: var(--text); }
+    label span.req { color: var(--orange); margin-left: 2px; }
+
+    input, select, textarea {
+      width: 100%; border: 1.5px solid var(--border); border-radius: 9px;
+      padding: .65rem .9rem; font-size: .9rem; font-family: 'Inter',sans-serif;
+      color: var(--text); background: #fff; outline: none;
+      transition: border-color .2s;
+    }
+    input:focus, select:focus, textarea:focus { border-color: var(--blue); }
+    input.err, select.err { border-color: var(--red); }
+
+    .phone-group { display: flex; gap: .5rem; }
+    .phone-group select { width: 138px; flex-shrink: 0; }
+    .phone-group input  { flex: 1; }
+
+    /* ── CHECKBOXES ── */
+    .check-row {
+      display: flex; align-items: flex-start; gap: .75rem;
+      margin-top: .75rem;
+    }
+    .check-row input[type=checkbox] {
+      width: 18px; height: 18px; margin-top: 2px;
+      flex-shrink: 0; cursor: pointer; accent-color: var(--blue);
+    }
+    .check-row label {
+      font-size: .84rem; font-weight: 400; margin: 0; cursor: pointer; line-height: 1.5;
+    }
+    .check-row label a { color: var(--blue); }
+
+    /* ── SUBMIT ── */
+    .btn-submit {
+      width: 100%; margin-top: 1.75rem; padding: .95rem;
+      background: var(--orange); color: #fff; border: none; border-radius: 12px;
+      font-size: 1rem; font-weight: 700; cursor: pointer; letter-spacing: .01em;
+      transition: background .2s, transform .1s;
+    }
+    .btn-submit:hover  { background: #d4611a; }
+    .btn-submit:active { transform: scale(.98); }
+    .btn-submit:disabled { opacity: .6; cursor: not-allowed; }
+
+    .form-err { color: var(--red); font-size: .82rem; margin-top: .75rem; display: none; }
+    .form-err.show { display: block; }
+
+    /* ── SUCCESS ── */
+    #success-screen {
+      display: none; max-width: 520px; margin: 4rem auto; text-align: center; padding: 1.5rem;
+    }
+    .success-icon {
+      width: 80px; height: 80px; border-radius: 50%;
+      background: #e8f7ef; color: var(--green);
+      font-size: 2.5rem; display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 1.25rem;
+    }
+    #success-screen h2 { font-size: 1.5rem; font-weight: 800; color: var(--text); margin-bottom: .5rem; }
+    #success-screen p  { color: var(--muted); font-size: .92rem; line-height: 1.6; }
+
+    .footer { text-align: center; font-size: .72rem; color: var(--muted); padding: 1.5rem; }
+  </style>
+</head>
+<body>
+
+<!-- ESTADO CARGANDO -->
+<div id="page-loading">
+  <svg width="40" height="40" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="25" cy="25" r="20" stroke="#c5d8ee" stroke-width="5"/>
+    <path d="M25 5 a20 20 0 0 1 20 20" stroke="#1a5fa5" stroke-width="5" stroke-linecap="round">
+      <animateTransform attributeName="transform" type="rotate" from="0 25 25" to="360 25 25" dur=".9s" repeatCount="indefinite"/>
+    </path>
+  </svg>
+  <p style="color:var(--muted);font-size:.9rem">Cargando evento…</p>
+</div>
+
+<!-- ERROR -->
+<div id="page-error" style="display:none">
+  <div style="font-size:2rem">⚠️</div>
+  <p id="error-msg">No se encontró el evento.</p>
+</div>
+
+<!-- FORMULARIO -->
+<div id="page-form" style="display:none">
+
+  <div class="page-header">
+    <img id="banner-img" class="banner-img" src="" alt="" style="display:none">
+    <div class="header-overlay">
+      <img class="logo" src="merlindata_blanco_sin%20fondo.png" alt="Merlin">
+      <h1 id="ev-titulo">Formulario de Registro</h1>
+      <div class="event-meta" id="ev-meta"></div>
+    </div>
+  </div>
+
+  <div class="form-wrap">
+    <div class="form-card">
+      <form id="reg-form" novalidate>
+
+        <!-- DATOS PERSONALES -->
+        <div class="section-title">Datos personales</div>
+        <div class="form-grid">
+          <div>
+            <label>Nombres <span class="req">*</span></label>
+            <input type="text" id="f-nombres" placeholder="Ej. Juan Carlos" required>
+          </div>
+          <div>
+            <label>Apellidos <span class="req">*</span></label>
+            <input type="text" id="f-apellidos" placeholder="Ej. García López" required>
+          </div>
+          <div>
+            <label>Tipo de documento <span class="req">*</span></label>
+            <select id="f-tipo-doc" required>
+              <option value="">— Seleccionar —</option>
+              <option value="DNI">DNI</option>
+              <option value="Pasaporte">Pasaporte</option>
+              <option value="Cédula de Ciudadanía">Cédula de Ciudadanía</option>
+              <option value="Cédula de Identidad">Cédula de Identidad</option>
+              <option value="Cédula de Extranjería">Cédula de Extranjería</option>
+              <option value="RUT">RUT</option>
+              <option value="NIF/NIE">NIF / NIE</option>
+              <option value="CPF">CPF</option>
+              <option value="CURP">CURP</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </div>
+          <div>
+            <label>Número de documento <span class="req">*</span></label>
+            <input type="text" id="f-num-doc" placeholder="Ej. 12345678" required>
+          </div>
+          <div>
+            <label>Fecha de nacimiento</label>
+            <input type="date" id="f-nacimiento">
+          </div>
+          <div>
+            <label>Género</label>
+            <select id="f-genero">
+              <option value="">— Seleccionar —</option>
+              <option value="Masculino">Masculino</option>
+              <option value="Femenino">Femenino</option>
+              <option value="No binario">No binario</option>
+              <option value="Prefiero no indicar">Prefiero no indicar</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- CONTACTO -->
+        <div class="section-title">Contacto</div>
+        <div class="form-grid">
+          <div class="col-full">
+            <label>Correo electrónico <span class="req">*</span></label>
+            <input type="email" id="f-email" placeholder="correo@ejemplo.com" required>
+          </div>
+          <div class="col-full">
+            <label>Celular</label>
+            <div class="phone-group">
+              <select id="f-cel-codigo"></select>
+              <input type="tel" id="f-celular" placeholder="Número sin código país">
+            </div>
+          </div>
+          <div class="col-full">
+            <label>WhatsApp</label>
+            <div class="phone-group">
+              <select id="f-wa-codigo"></select>
+              <input type="tel" id="f-whatsapp" placeholder="Número sin código país">
+            </div>
+          </div>
+        </div>
+
+        <!-- UBICACIÓN -->
+        <div class="section-title">Ubicación</div>
+        <div class="form-grid">
+          <div>
+            <label>País de procedencia</label>
+            <select id="f-pais-proc"></select>
+          </div>
+          <div>
+            <label>País de residencia</label>
+            <select id="f-pais-res"></select>
+          </div>
+        </div>
+
+        <!-- CAMPOS PERSONALIZADOS -->
+        <div id="custom-fields-section" style="display:none">
+          <div class="section-title">Información adicional</div>
+          <div id="custom-fields-wrap" class="form-grid"></div>
+        </div>
+
+        <!-- TÉRMINOS -->
+        <div class="section-title">Aceptaciones</div>
+        <div class="check-row">
+          <input type="checkbox" id="f-terminos" required>
+          <label for="f-terminos">
+            Acepto los <a id="link-terminos" href="#" target="_blank">Términos y Condiciones</a>
+            del evento. <span class="req">*</span>
+          </label>
+        </div>
+        <div class="check-row">
+          <input type="checkbox" id="f-privacidad" required>
+          <label for="f-privacidad">
+            He leído y acepto la <a id="link-privacidad" href="#" target="_blank">Política de Privacidad de Datos</a>
+            (Ley de Protección de Datos Personales). <span class="req">*</span>
+          </label>
+        </div>
+
+        <p class="form-err" id="form-err"></p>
+
+        <button type="submit" class="btn-submit" id="btn-submit">
+          Registrarme al evento
+        </button>
+
+      </form>
+    </div>
+  </div>
+
+  <div class="footer">&copy; 2026 Asociación Merlin Data Technology — Todos los derechos reservados</div>
+</div>
+
+<!-- ÉXITO -->
+<div id="success-screen">
+  <div class="success-icon">✓</div>
+  <h2>¡Registro exitoso!</h2>
+  <p id="success-msg">Tu inscripción fue recibida. Recibirás un correo de confirmación en breve.</p>
+  <p style="margin-top:1rem; font-size:.78rem; color:var(--muted)">Puedes cerrar esta ventana.</p>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+//  CONFIG
+// ═══════════════════════════════════════════════
+const SUPABASE_URL = 'https://uceswdscummpokmquecs.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjZXN3ZHNjdW1tcG9rbXF1ZWNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NjQyNzEsImV4cCI6MjA5MTM0MDI3MX0.omidUnKS78E78sng3U0ozEUme3ARWcUDWlKSm59zvzQ';
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ── Códigos de país (código ISO + dial code + nombre) ──
+const PAISES = [
+  {iso:'AF',dial:'+93', nombre:'Afganistán'},
+  {iso:'AL',dial:'+355',nombre:'Albania'},
+  {iso:'DE',dial:'+49', nombre:'Alemania'},
+  {iso:'DZ',dial:'+213',nombre:'Argelia'},
+  {iso:'AD',dial:'+376',nombre:'Andorra'},
+  {iso:'AO',dial:'+244',nombre:'Angola'},
+  {iso:'AR',dial:'+54', nombre:'Argentina'},
+  {iso:'AM',dial:'+374',nombre:'Armenia'},
+  {iso:'AU',dial:'+61', nombre:'Australia'},
+  {iso:'AT',dial:'+43', nombre:'Austria'},
+  {iso:'AZ',dial:'+994',nombre:'Azerbaiyán'},
+  {iso:'BS',dial:'+1',  nombre:'Bahamas'},
+  {iso:'BD',dial:'+880',nombre:'Bangladés'},
+  {iso:'BE',dial:'+32', nombre:'Bélgica'},
+  {iso:'BZ',dial:'+501',nombre:'Belice'},
+  {iso:'BY',dial:'+375',nombre:'Bielorrusia'},
+  {iso:'BO',dial:'+591',nombre:'Bolivia'},
+  {iso:'BA',dial:'+387',nombre:'Bosnia y Herzegovina'},
+  {iso:'BR',dial:'+55', nombre:'Brasil'},
+  {iso:'BN',dial:'+673',nombre:'Brunéi'},
+  {iso:'BG',dial:'+359',nombre:'Bulgaria'},
+  {iso:'BF',dial:'+226',nombre:'Burkina Faso'},
+  {iso:'KH',dial:'+855',nombre:'Camboya'},
+  {iso:'CM',dial:'+237',nombre:'Camerún'},
+  {iso:'CA',dial:'+1',  nombre:'Canadá'},
+  {iso:'CL',dial:'+56', nombre:'Chile'},
+  {iso:'CN',dial:'+86', nombre:'China'},
+  {iso:'CY',dial:'+357',nombre:'Chipre'},
+  {iso:'CO',dial:'+57', nombre:'Colombia'},
+  {iso:'KM',dial:'+269',nombre:'Comoras'},
+  {iso:'CG',dial:'+242',nombre:'Congo'},
+  {iso:'KR',dial:'+82', nombre:'Corea del Sur'},
+  {iso:'CR',dial:'+506',nombre:'Costa Rica'},
+  {iso:'HR',dial:'+385',nombre:'Croacia'},
+  {iso:'CU',dial:'+53', nombre:'Cuba'},
+  {iso:'DK',dial:'+45', nombre:'Dinamarca'},
+  {iso:'EC',dial:'+593',nombre:'Ecuador'},
+  {iso:'EG',dial:'+20', nombre:'Egipto'},
+  {iso:'SV',dial:'+503',nombre:'El Salvador'},
+  {iso:'AE',dial:'+971',nombre:'Emiratos Árabes Unidos'},
+  {iso:'ER',dial:'+291',nombre:'Eritrea'},
+  {iso:'SK',dial:'+421',nombre:'Eslovaquia'},
+  {iso:'SI',dial:'+386',nombre:'Eslovenia'},
+  {iso:'ES',dial:'+34', nombre:'España'},
+  {iso:'US',dial:'+1',  nombre:'Estados Unidos'},
+  {iso:'EE',dial:'+372',nombre:'Estonia'},
+  {iso:'ET',dial:'+251',nombre:'Etiopía'},
+  {iso:'PH',dial:'+63', nombre:'Filipinas'},
+  {iso:'FI',dial:'+358',nombre:'Finlandia'},
+  {iso:'FR',dial:'+33', nombre:'Francia'},
+  {iso:'GA',dial:'+241',nombre:'Gabón'},
+  {iso:'GH',dial:'+233',nombre:'Ghana'},
+  {iso:'GR',dial:'+30', nombre:'Grecia'},
+  {iso:'GT',dial:'+502',nombre:'Guatemala'},
+  {iso:'GN',dial:'+224',nombre:'Guinea'},
+  {iso:'GY',dial:'+592',nombre:'Guyana'},
+  {iso:'HT',dial:'+509',nombre:'Haití'},
+  {iso:'HN',dial:'+504',nombre:'Honduras'},
+  {iso:'HK',dial:'+852',nombre:'Hong Kong'},
+  {iso:'HU',dial:'+36', nombre:'Hungría'},
+  {iso:'IN',dial:'+91', nombre:'India'},
+  {iso:'ID',dial:'+62', nombre:'Indonesia'},
+  {iso:'IQ',dial:'+964',nombre:'Irak'},
+  {iso:'IR',dial:'+98', nombre:'Irán'},
+  {iso:'IE',dial:'+353',nombre:'Irlanda'},
+  {iso:'IS',dial:'+354',nombre:'Islandia'},
+  {iso:'IL',dial:'+972',nombre:'Israel'},
+  {iso:'IT',dial:'+39', nombre:'Italia'},
+  {iso:'JM',dial:'+1',  nombre:'Jamaica'},
+  {iso:'JP',dial:'+81', nombre:'Japón'},
+  {iso:'JO',dial:'+962',nombre:'Jordania'},
+  {iso:'KZ',dial:'+7',  nombre:'Kazajistán'},
+  {iso:'KE',dial:'+254',nombre:'Kenia'},
+  {iso:'KW',dial:'+965',nombre:'Kuwait'},
+  {iso:'LV',dial:'+371',nombre:'Letonia'},
+  {iso:'LB',dial:'+961',nombre:'Líbano'},
+  {iso:'LY',dial:'+218',nombre:'Libia'},
+  {iso:'LT',dial:'+370',nombre:'Lituania'},
+  {iso:'LU',dial:'+352',nombre:'Luxemburgo'},
+  {iso:'MY',dial:'+60', nombre:'Malasia'},
+  {iso:'MV',dial:'+960',nombre:'Maldivas'},
+  {iso:'ML',dial:'+223',nombre:'Mali'},
+  {iso:'MT',dial:'+356',nombre:'Malta'},
+  {iso:'MA',dial:'+212',nombre:'Marruecos'},
+  {iso:'MX',dial:'+52', nombre:'México'},
+  {iso:'MD',dial:'+373',nombre:'Moldavia'},
+  {iso:'MN',dial:'+976',nombre:'Mongolia'},
+  {iso:'MZ',dial:'+258',nombre:'Mozambique'},
+  {iso:'NA',dial:'+264',nombre:'Namibia'},
+  {iso:'NP',dial:'+977',nombre:'Nepal'},
+  {iso:'NI',dial:'+505',nombre:'Nicaragua'},
+  {iso:'NE',dial:'+227',nombre:'Níger'},
+  {iso:'NG',dial:'+234',nombre:'Nigeria'},
+  {iso:'NO',dial:'+47', nombre:'Noruega'},
+  {iso:'NZ',dial:'+64', nombre:'Nueva Zelanda'},
+  {iso:'OM',dial:'+968',nombre:'Omán'},
+  {iso:'NL',dial:'+31', nombre:'Países Bajos'},
+  {iso:'PK',dial:'+92', nombre:'Pakistán'},
+  {iso:'PA',dial:'+507',nombre:'Panamá'},
+  {iso:'PG',dial:'+675',nombre:'Papua Nueva Guinea'},
+  {iso:'PY',dial:'+595',nombre:'Paraguay'},
+  {iso:'PE',dial:'+51', nombre:'Perú'},
+  {iso:'PL',dial:'+48', nombre:'Polonia'},
+  {iso:'PT',dial:'+351',nombre:'Portugal'},
+  {iso:'PR',dial:'+1',  nombre:'Puerto Rico'},
+  {iso:'QA',dial:'+974',nombre:'Catar'},
+  {iso:'GB',dial:'+44', nombre:'Reino Unido'},
+  {iso:'CZ',dial:'+420',nombre:'República Checa'},
+  {iso:'DO',dial:'+1',  nombre:'República Dominicana'},
+  {iso:'RO',dial:'+40', nombre:'Rumania'},
+  {iso:'RU',dial:'+7',  nombre:'Rusia'},
+  {iso:'RW',dial:'+250',nombre:'Ruanda'},
+  {iso:'SA',dial:'+966',nombre:'Arabia Saudita'},
+  {iso:'SN',dial:'+221',nombre:'Senegal'},
+  {iso:'RS',dial:'+381',nombre:'Serbia'},
+  {iso:'SG',dial:'+65', nombre:'Singapur'},
+  {iso:'SY',dial:'+963',nombre:'Siria'},
+  {iso:'SO',dial:'+252',nombre:'Somalia'},
+  {iso:'LK',dial:'+94', nombre:'Sri Lanka'},
+  {iso:'ZA',dial:'+27', nombre:'Sudáfrica'},
+  {iso:'SD',dial:'+249',nombre:'Sudán'},
+  {iso:'SE',dial:'+46', nombre:'Suecia'},
+  {iso:'CH',dial:'+41', nombre:'Suiza'},
+  {iso:'TH',dial:'+66', nombre:'Tailandia'},
+  {iso:'TZ',dial:'+255',nombre:'Tanzania'},
+  {iso:'TN',dial:'+216',nombre:'Túnez'},
+  {iso:'TR',dial:'+90', nombre:'Turquía'},
+  {iso:'TM',dial:'+993',nombre:'Turkmenistán'},
+  {iso:'UA',dial:'+380',nombre:'Ucrania'},
+  {iso:'UG',dial:'+256',nombre:'Uganda'},
+  {iso:'UY',dial:'+598',nombre:'Uruguay'},
+  {iso:'UZ',dial:'+998',nombre:'Uzbekistán'},
+  {iso:'VE',dial:'+58', nombre:'Venezuela'},
+  {iso:'VN',dial:'+84', nombre:'Vietnam'},
+  {iso:'YE',dial:'+967',nombre:'Yemen'},
+  {iso:'ZM',dial:'+260',nombre:'Zambia'},
+  {iso:'ZW',dial:'+263',nombre:'Zimbabue'},
+].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+
+// ── Llenar selects ──
+function buildPhoneSelect(selectId, defaultDial = '+51') {
+  const sel = document.getElementById(selectId);
+  PAISES.forEach(p => {
+    const o = document.createElement('option');
+    o.value = p.dial;
+    o.textContent = `${p.iso} ${p.dial}`;
+    if (p.dial === defaultDial && p.iso === 'PE') o.selected = true;
+    sel.appendChild(o);
+  });
+}
+function buildCountrySelect(selectId) {
+  const sel = document.getElementById(selectId);
+  const empty = document.createElement('option');
+  empty.value = ''; empty.textContent = '— Seleccionar país —';
+  sel.appendChild(empty);
+  PAISES.forEach(p => {
+    const o = document.createElement('option');
+    o.value = p.nombre;
+    o.textContent = p.nombre;
+    sel.appendChild(o);
+  });
+}
+
+buildPhoneSelect('f-cel-codigo');
+buildPhoneSelect('f-wa-codigo');
+buildCountrySelect('f-pais-proc');
+buildCountrySelect('f-pais-res');
+
+// ═══════════════════════════════════════════════
+//  CARGA DEL EVENTO
+// ═══════════════════════════════════════════════
+let eventoActual = null;
+
+async function cargarEvento() {
+  const params  = new URLSearchParams(window.location.search);
+  const eventoId = params.get('evento') || params.get('id');
+
+  if (!eventoId) return mostrarError('No se especificó ningún evento. Usa el enlace correcto.');
+
+  const { data, error } = await db.from('events').select('*').eq('id', eventoId).single();
+
+  if (error || !data) return mostrarError('No se encontró el evento. Verifica el enlace.');
+  if (data.registration_open === false) return mostrarError('El registro para este evento está cerrado.');
+
+  eventoActual = data;
+  renderEvento(data);
+}
+
+function renderEvento(ev) {
+  document.title = `${ev.nombre} – Registro`;
+
+  if (ev.banner_url) {
+    const img = document.getElementById('banner-img');
+    img.src = ev.banner_url; img.style.display = 'block';
+  }
+
+  document.getElementById('ev-titulo').textContent = ev.nombre;
+
+  const meta = [];
+  if (ev.tipo)  meta.push(`📋 ${ev.tipo === 'programa' ? 'Programa formativo' : 'Evento'}`);
+  if (ev.fecha) meta.push(`📅 ${ev.fecha}`);
+  if (ev.lugar) meta.push(`📍 ${ev.lugar}`);
+  document.getElementById('ev-meta').innerHTML = meta
+    .map(m => `<span class="meta-chip">${m}</span>`).join('');
+
+  // Campos personalizados
+  if (ev.custom_fields && ev.custom_fields.length > 0) {
+    renderCustomFields(ev.custom_fields);
+  }
+
+  // Términos y privacidad
+  if (ev.terminos_url) {
+    document.getElementById('link-terminos').href = ev.terminos_url;
+  }
+  if (ev.privacidad_url) {
+    document.getElementById('link-privacidad').href = ev.privacidad_url;
+  }
+
+  mostrarForm();
+}
+
+function renderCustomFields(fields) {
+  const wrap = document.getElementById('custom-fields-wrap');
+  const sec  = document.getElementById('custom-fields-section');
+  wrap.innerHTML = '';
+  fields.forEach(f => {
+    const div = document.createElement('div');
+    if (f.tipo === 'textarea') div.classList.add('col-full');
+
+    const req = f.requerido ? '<span class="req">*</span>' : '';
+    let input = '';
+    if (f.tipo === 'select') {
+      const opts = (f.opciones || []).map(o => `<option value="${o}">${o}</option>`).join('');
+      input = `<select id="cf-${f.id}" ${f.requerido ? 'required' : ''}><option value="">— Seleccionar —</option>${opts}</select>`;
+    } else if (f.tipo === 'textarea') {
+      input = `<textarea id="cf-${f.id}" rows="3" placeholder="${f.placeholder || ''}" ${f.requerido ? 'required' : ''}></textarea>`;
+    } else {
+      input = `<input type="${f.tipo || 'text'}" id="cf-${f.id}" placeholder="${f.placeholder || ''}" ${f.requerido ? 'required' : ''}>`;
+    }
+    div.innerHTML = `<label>${f.etiqueta} ${req}</label>${input}`;
+    wrap.appendChild(div);
+  });
+  sec.style.display = 'block';
+}
+
+function mostrarForm()  {
+  document.getElementById('page-loading').style.display = 'none';
+  document.getElementById('page-form').style.display    = 'block';
+}
+function mostrarError(msg) {
+  document.getElementById('page-loading').style.display = 'none';
+  document.getElementById('error-msg').textContent = msg;
+  document.getElementById('page-error').style.display = 'flex';
+}
+
+// ═══════════════════════════════════════════════
+//  ENVÍO DEL FORMULARIO
+// ═══════════════════════════════════════════════
+document.getElementById('reg-form').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const errEl  = document.getElementById('form-err');
+  const btnEl  = document.getElementById('btn-submit');
+  errEl.classList.remove('show');
+
+  // Validaciones
+  const nombres   = document.getElementById('f-nombres').value.trim();
+  const apellidos = document.getElementById('f-apellidos').value.trim();
+  const tipoDoc   = document.getElementById('f-tipo-doc').value;
+  const numDoc    = document.getElementById('f-num-doc').value.trim();
+  const email     = document.getElementById('f-email').value.trim();
+  const terminos  = document.getElementById('f-terminos').checked;
+  const privacidad= document.getElementById('f-privacidad').checked;
+
+  if (!nombres)   return showErr('El nombre es obligatorio.', 'f-nombres');
+  if (!apellidos) return showErr('El apellido es obligatorio.', 'f-apellidos');
+  if (!tipoDoc)   return showErr('Selecciona un tipo de documento.', 'f-tipo-doc');
+  if (!numDoc)    return showErr('El número de documento es obligatorio.', 'f-num-doc');
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showErr('Ingresa un correo válido.', 'f-email');
+  if (!terminos)  return showErr('Debes aceptar los Términos y Condiciones.');
+  if (!privacidad)return showErr('Debes aceptar la Política de Privacidad.');
+
+  // Campos personalizados
+  const customData = {};
+  if (eventoActual.custom_fields) {
+    for (const f of eventoActual.custom_fields) {
+      const el = document.getElementById(`cf-${f.id}`);
+      if (!el) continue;
+      const val = el.value.trim();
+      if (f.requerido && !val) return showErr(`El campo "${f.etiqueta}" es obligatorio.`);
+      customData[f.id] = val;
+    }
+  }
+
+  btnEl.disabled = true;
+  btnEl.textContent = 'Registrando…';
+
+  // Guardar en registrations
+  const registro = {
+    event_id:         eventoActual.id,
+    nombres,
+    apellidos,
+    tipo_documento:   tipoDoc,
+    numero_documento: numDoc,
+    email,
+    celular_codigo:   document.getElementById('f-cel-codigo').value,
+    celular:          document.getElementById('f-celular').value.trim() || null,
+    whatsapp_codigo:  document.getElementById('f-wa-codigo').value,
+    whatsapp:         document.getElementById('f-whatsapp').value.trim() || null,
+    pais_procedencia: document.getElementById('f-pais-proc').value || null,
+    pais_residencia:  document.getElementById('f-pais-res').value || null,
+    fecha_nacimiento: document.getElementById('f-nacimiento').value || null,
+    genero:           document.getElementById('f-genero').value || null,
+    acepta_terminos:  true,
+    acepta_privacidad:true,
+    custom_data:      customData,
+  };
+
+  const { error: regErr } = await db.from('registrations').insert([registro]);
+  if (regErr) {
+    btnEl.disabled = false; btnEl.textContent = 'Registrarme al evento';
+    return showErr('Error al guardar el registro: ' + regErr.message);
+  }
+
+  // Sincronizar con tabla participants (para asistencia)
+  await db.from('participants').insert([{
+    event_id:  eventoActual.id,
+    nombre:    nombres,
+    apellido:  apellidos,
+    id_number: numDoc,
+  }]);
+
+  // Solicitar email de confirmación al servidor
+  try {
+    const emailHtml = buildConfirmationEmail(nombres, apellidos, eventoActual);
+    await fetch('/api/send-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        to_email: email,
+        to_name:  `${nombres} ${apellidos}`,
+        subject:  `Confirmación de registro: ${eventoActual.nombre}`,
+        html:     emailHtml,
+      })
+    });
+  } catch (emailErr) {
+    console.warn('Email no enviado:', emailErr);
+  }
+
+  // Mostrar pantalla de éxito
+  document.getElementById('page-form').style.display    = 'none';
+  document.getElementById('success-screen').style.display = 'block';
+  document.getElementById('success-msg').textContent =
+    `Tu inscripción al evento "${eventoActual.nombre}" fue recibida correctamente. ` +
+    `Recibirás un correo de confirmación en ${email}.`;
+
+  function showErr(msg, fieldId) {
+    errEl.textContent = msg; errEl.classList.add('show');
+    if (fieldId) {
+      const el = document.getElementById(fieldId);
+      if (el) { el.classList.add('err'); el.focus(); el.addEventListener('input', () => el.classList.remove('err'), { once: true }); }
+    }
+    btnEl.disabled = false; btnEl.textContent = 'Registrarme al evento';
+  }
+});
+
+// ── Plantilla de email de confirmación ──
+function buildConfirmationEmail(nombres, apellidos, ev) {
+  const fecha = ev.fecha ? `<p><b>Fecha:</b> ${ev.fecha}</p>` : '';
+  const lugar = ev.lugar ? `<p><b>Lugar:</b> ${ev.lugar}</p>` : '';
+  return `
+  <div style="font-family:'Inter',Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.1)">
+    <div style="background:linear-gradient(135deg,#0f3d6e,#1a5fa5);padding:2rem 2rem 1.5rem;text-align:center">
+      <h1 style="color:#fff;font-size:1.4rem;margin:0">¡Registro confirmado!</h1>
+      <p style="color:rgba(255,255,255,.8);margin:.5rem 0 0;font-size:.9rem">${ev.nombre}</p>
+    </div>
+    <div style="padding:1.75rem 2rem">
+      <p>Hola <b>${nombres} ${apellidos}</b>,</p>
+      <p style="margin-top:.75rem">Tu inscripción ha sido recibida exitosamente. A continuación los detalles del evento:</p>
+      <div style="background:#f0f5fb;border-radius:10px;padding:1rem 1.25rem;margin:1.25rem 0">
+        <p><b>Evento:</b> ${ev.nombre}</p>
+        ${fecha}${lugar}
+        ${ev.descripcion ? `<p><b>Descripción:</b> ${ev.descripcion}</p>` : ''}
+      </div>
+      <p style="color:#7a98bb;font-size:.82rem;margin-top:1.5rem">Este es un correo automático. Por favor no respondas a este mensaje.</p>
+    </div>
+    <div style="background:#f0f5fb;padding:1rem 2rem;text-align:center">
+      <p style="font-size:.75rem;color:#7a98bb">&copy; 2026 Asociación Merlin Data Technology</p>
+    </div>
+  </div>`;
+}
+
+// Arrancar
+cargarEvento();
+</script>
+</body>
+</html>

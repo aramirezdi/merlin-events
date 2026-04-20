@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin – Merlin Events</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+    :root {
+      --blue:#1a5fa5; --blue2:#14508e; --blue3:#0f3d6e;
+      --orange:#e9721f; --white:#fff; --off:#f0f5fb;
+      --muted:#7a98bb; --text:#1a2a3a; --border:#c5d8ee;
+      --green:#1a9a4a; --red:#d93025; --yellow:#f5a623;
+    }
+    html, body { min-height:100vh; font-family:'Inter',sans-serif; background:var(--off); color:var(--text); }
+
+    /* ── AUTH ── */
+    #s-auth {
+      min-height:100vh; display:flex; align-items:center; justify-content:center;
+      background:linear-gradient(135deg,var(--blue3) 0%,var(--blue) 60%,#2272c3 100%); padding:2rem;
+    }
+    .auth-box {
+      background:#fff; border-radius:18px; padding:2.5rem 3rem;
+      width:100%; max-width:420px; text-align:center;
+      box-shadow:0 20px 60px rgba(0,0,0,.25);
+    }
+    .auth-box .logo { height:48px; margin-bottom:1.5rem; }
+    .auth-box h2 { font-size:1.1rem; font-weight:700; color:var(--blue); margin-bottom:.35rem; }
+    .auth-box p  { font-size:.88rem; color:var(--muted); margin-bottom:1.75rem; }
+    .auth-box input {
+      width:100%; border:1.5px solid var(--border); border-radius:9px;
+      padding:.75rem 1rem; font-size:.95rem; font-family:'Inter',sans-serif;
+      outline:none; margin-bottom:1rem; color:var(--text); text-align:center;
+      letter-spacing:.15em; transition:border-color .2s;
+    }
+    .auth-box input:focus { border-color:var(--blue); }
+
+    /* ── TOPBAR ── */
+    #s-main { display:none; }
+    .topbar {
+      background:var(--blue); color:#fff;
+      display:flex; align-items:center; justify-content:space-between;
+      padding:.75rem 1.5rem; gap:.5rem; flex-wrap:wrap;
+      box-shadow:0 2px 8px rgba(0,0,0,.18);
+    }
+    .topbar-left { display:flex; align-items:center; gap:.9rem; }
+    .topbar-left img { height:32px; }
+    .topbar-left span { font-weight:700; font-size:1rem; }
+    .topbar a { color:rgba(255,255,255,.75); text-decoration:none; font-size:.82rem; }
+    .topbar a:hover { color:#fff; }
+
+    /* ── TABS ── */
+    .tabs {
+      display:flex; gap:0; background:#fff;
+      border-bottom:2px solid var(--border);
+      padding:0 1.5rem; overflow-x:auto;
+    }
+    .tab-btn {
+      padding:.85rem 1.25rem; font-size:.9rem; font-weight:600;
+      color:var(--muted); background:none; border:none; cursor:pointer;
+      border-bottom:3px solid transparent; margin-bottom:-2px;
+      white-space:nowrap; transition:color .2s, border-color .2s;
+    }
+    .tab-btn.active { color:var(--blue); border-bottom-color:var(--blue); }
+    .tab-btn:hover:not(.active) { color:var(--text); }
+
+    .tab-panel { display:none; padding:1.5rem; }
+    .tab-panel.active { display:block; }
+
+    /* ── CARDS / SECTIONS ── */
+    .panel-card {
+      background:#fff; border-radius:14px;
+      box-shadow:0 2px 12px rgba(0,0,0,.07);
+      padding:1.5rem; margin-bottom:1.5rem;
+    }
+    .panel-card h3 { font-size:1rem; font-weight:700; margin-bottom:1.1rem; color:var(--blue); }
+
+    /* ── FORM CONTROLS ── */
+    .form-row { margin-bottom:.9rem; }
+    .form-row label { display:block; font-size:.82rem; font-weight:600; margin-bottom:.35rem; }
+    .form-row label span { color:var(--orange); margin-left:2px; }
+    .form-row input, .form-row select, .form-row textarea {
+      width:100%; border:1.5px solid var(--border); border-radius:9px;
+      padding:.65rem .9rem; font-size:.88rem; font-family:'Inter',sans-serif;
+      color:var(--text); outline:none; transition:border-color .2s;
+    }
+    .form-row input:focus, .form-row select:focus, .form-row textarea:focus { border-color:var(--blue); }
+
+    .form-2col { display:grid; grid-template-columns:1fr 1fr; gap:.75rem; }
+    @media(max-width:540px){ .form-2col { grid-template-columns:1fr; } }
+
+    /* ── BOTONES ── */
+    .btn {
+      display:inline-flex; align-items:center; gap:.4rem;
+      padding:.6rem 1.2rem; border-radius:9px; border:none;
+      font-size:.85rem; font-weight:700; cursor:pointer;
+      transition:opacity .15s, transform .1s;
+    }
+    .btn:active { transform:scale(.97); }
+    .btn:disabled { opacity:.5; cursor:not-allowed; }
+    .btn-blue   { background:var(--blue); color:#fff; }
+    .btn-blue:hover   { background:var(--blue2); }
+    .btn-orange { background:var(--orange); color:#fff; }
+    .btn-orange:hover { background:#d4611a; }
+    .btn-green  { background:var(--green); color:#fff; }
+    .btn-green:hover  { background:#168040; }
+    .btn-red    { background:var(--red); color:#fff; }
+    .btn-ghost  { background:var(--off); color:var(--text); }
+    .btn-ghost:hover  { background:var(--border); }
+    .btn-sm { padding:.4rem .85rem; font-size:.78rem; }
+
+    /* ── TABLA ── */
+    .table-wrap { overflow-x:auto; border-radius:10px; }
+    table { width:100%; border-collapse:collapse; font-size:.84rem; }
+    thead th {
+      background:var(--off); color:var(--muted);
+      font-size:.72rem; font-weight:700; text-transform:uppercase;
+      letter-spacing:.06em; padding:.65rem .9rem; text-align:left;
+      border-bottom:1.5px solid var(--border);
+    }
+    tbody tr { border-bottom:1px solid var(--border); transition:background .1s; }
+    tbody tr:hover { background:#f8fafd; }
+    tbody td { padding:.6rem .9rem; vertical-align:middle; }
+
+    /* ── BADGE ── */
+    .badge {
+      display:inline-block; font-size:.7rem; font-weight:700;
+      padding:.2rem .6rem; border-radius:99px; letter-spacing:.04em;
+    }
+    .badge-blue   { background:var(--off); color:var(--blue); }
+    .badge-green  { background:#e8f7ef; color:var(--green); }
+    .badge-orange { background:#fff3ea; color:var(--orange); }
+    .badge-red    { background:#fdecea; color:var(--red); }
+    .badge-gray   { background:#f0f0f0; color:#777; }
+
+    /* ── BANNER PREVIEW ── */
+    .banner-preview {
+      width:100%; max-height:200px; object-fit:cover;
+      border-radius:10px; margin-top:.6rem; display:none;
+    }
+    .upload-zone {
+      border:2px dashed var(--border); border-radius:10px;
+      padding:1.5rem; text-align:center; cursor:pointer;
+      transition:border-color .2s; color:var(--muted);
+    }
+    .upload-zone:hover { border-color:var(--blue); }
+    .upload-zone input { display:none; }
+
+    /* ── CAMPOS PERSONALIZADOS ── */
+    .custom-field-row {
+      display:grid; grid-template-columns:1fr 1fr auto auto; gap:.5rem;
+      align-items:center; padding:.5rem; background:var(--off);
+      border-radius:8px; margin-bottom:.5rem;
+    }
+    @media(max-width:560px){ .custom-field-row { grid-template-columns:1fr 1fr; } }
+
+    /* ── MODAL ── */
+    .modal-bg {
+      display:none; position:fixed; inset:0;
+      background:rgba(0,0,0,.45); z-index:1000;
+      align-items:center; justify-content:center; padding:1rem;
+    }
+    .modal-bg.open { display:flex; }
+    .modal {
+      background:#fff; border-radius:18px; width:100%; max-width:600px;
+      max-height:90vh; overflow-y:auto;
+      padding:2rem; box-shadow:0 20px 60px rgba(0,0,0,.25);
+    }
+    .modal h3 { font-size:1.1rem; font-weight:800; margin-bottom:1.25rem; color:var(--blue); }
+    .modal-close {
+      float:right; background:none; border:none; font-size:1.4rem;
+      color:var(--muted); cursor:pointer; margin-top:-.25rem;
+    }
+
+    /* ── TOAST ── */
+    #toast {
+      position:fixed; bottom:1.5rem; right:1.5rem;
+      background:var(--blue3); color:#fff; padding:.75rem 1.25rem;
+      border-radius:10px; font-size:.85rem; font-weight:600;
+      box-shadow:0 4px 20px rgba(0,0,0,.25); z-index:9999;
+      transform:translateY(8px); opacity:0; transition:all .25s;
+      pointer-events:none;
+    }
+    #toast.show { transform:translateY(0); opacity:1; }
+
+    .text-muted { color:var(--muted); font-size:.82rem; }
+    .mt-1 { margin-top:.5rem; }
+    .empty-state { text-align:center; padding:2.5rem; color:var(--muted); font-size:.88rem; }
+
+    /* ── EMAIL EDITOR ── */
+    #email-body {
+      width:100%; min-height:180px; resize:vertical;
+    }
+    .email-vars {
+      display:flex; flex-wrap:wrap; gap:.4rem; margin-top:.5rem;
+    }
+    .var-chip {
+      font-size:.72rem; background:var(--off); border:1px solid var(--border);
+      border-radius:6px; padding:.2rem .5rem; cursor:pointer; color:var(--blue);
+      font-family:monospace;
+    }
+    .var-chip:hover { background:var(--border); }
+  </style>
+</head>
+<body>
+
+<!-- ── AUTH ── -->
+<div id="s-auth">
+  <div class="auth-box">
+    <img class="logo" src="merlindata_blanco_sin%20fondo.png" alt="Merlin"
+         style="filter:invert(1) brightness(0) saturate(0) invert(1);opacity:.85">
+    <h2>Merlin Events — Admin</h2>
+    <p>Ingresa la contraseña de administrador</p>
+    <input type="password" id="pwd" placeholder="Contraseña"
+           onkeydown="if(event.key==='Enter') checkAuth()">
+    <button class="btn btn-blue" style="width:100%;justify-content:center" onclick="checkAuth()">Ingresar</button>
+    <p class="text-muted mt-1" id="auth-err" style="color:var(--red)"></p>
+  </div>
+</div>
+
+<!-- ── MAIN ── -->
+<div id="s-main">
+  <div class="topbar">
+    <div class="topbar-left">
+      <img src="merlindata_blanco_sin%20fondo.png" alt="Merlin">
+      <span>Admin Panel</span>
+    </div>
+    <div style="display:flex;gap:1rem;align-items:center">
+      <a href="asistencia.html">Asistencia</a>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="/">Inicio</a>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab('tab-eventos')">Eventos / Programas</button>
+    <button class="tab-btn" onclick="showTab('tab-registros')">Registrados</button>
+    <button class="tab-btn" onclick="showTab('tab-correos')">Envío de Correos</button>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       TAB 1 — EVENTOS / PROGRAMAS
+  ═════════════════════════════════════════ -->
+  <div id="tab-eventos" class="tab-panel active">
+
+    <!-- Crear Evento -->
+    <div class="panel-card">
+      <h3>➕ Crear nuevo evento / programa</h3>
+      <div class="form-2col">
+        <div class="form-row" style="grid-column:1/-1">
+          <label>Nombre <span>*</span></label>
+          <input type="text" id="ev-nombre" placeholder="Ej. Congreso Internacional de Datos 2026">
+        </div>
+        <div class="form-row">
+          <label>Tipo</label>
+          <select id="ev-tipo">
+            <option value="evento">Evento</option>
+            <option value="programa">Programa formativo</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>Fecha</label>
+          <input type="text" id="ev-fecha" placeholder="Ej. 15 de junio de 2026">
+        </div>
+        <div class="form-row">
+          <label>Lugar</label>
+          <input type="text" id="ev-lugar" placeholder="Ciudad, País / Virtual">
+        </div>
+        <div class="form-row">
+          <label>Registro abierto</label>
+          <select id="ev-open">
+            <option value="true">Sí — Formulario público activo</option>
+            <option value="false">No — Registro cerrado</option>
+          </select>
+        </div>
+        <div class="form-row" style="grid-column:1/-1">
+          <label>Descripción</label>
+          <textarea id="ev-desc" rows="2" placeholder="Breve descripción del evento…"></textarea>
+        </div>
+        <div class="form-row">
+          <label>URL Términos y Condiciones</label>
+          <input type="url" id="ev-terminos" placeholder="https://…">
+        </div>
+        <div class="form-row">
+          <label>URL Política de Privacidad</label>
+          <input type="url" id="ev-privacidad" placeholder="https://…">
+        </div>
+      </div>
+
+      <!-- Banner -->
+      <div class="form-row">
+        <label>Banner del evento</label>
+        <div class="upload-zone" onclick="document.getElementById('banner-file').click()">
+          <span id="banner-label">📷 Haz clic para subir un banner (JPG, PNG, WebP — máx. 5 MB)</span>
+          <input type="file" id="banner-file" accept="image/*" onchange="previewBanner(event)">
+        </div>
+        <img id="banner-preview" class="banner-preview" alt="Vista previa">
+      </div>
+
+      <!-- Campos personalizados -->
+      <div class="form-row">
+        <label>Campos personalizados del formulario</label>
+        <div id="custom-fields-list"></div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:.5rem" onclick="addCustomField()">+ Agregar campo</button>
+      </div>
+
+      <p style="color:var(--red);font-size:.82rem;margin-top:.5rem" id="ev-err"></p>
+      <button class="btn btn-orange" style="margin-top:.75rem" onclick="crearEvento()">Crear evento</button>
+    </div>
+
+    <!-- Lista de eventos -->
+    <div class="panel-card">
+      <h3>📋 Eventos y programas</h3>
+      <div class="table-wrap">
+        <table id="eventos-table">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Tipo</th>
+              <th>Fecha</th>
+              <th>Registro</th>
+              <th>Registrados</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="eventos-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       TAB 2 — REGISTRADOS
+  ═════════════════════════════════════════ -->
+  <div id="tab-registros" class="tab-panel">
+
+    <div class="panel-card">
+      <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-bottom:1rem">
+        <h3 style="margin:0">Registros por evento</h3>
+        <select id="reg-evento-select" style="width:auto;flex:1;min-width:200px;
+          border:1.5px solid var(--border);border-radius:9px;padding:.55rem .9rem;font-size:.88rem;outline:none">
+          <option value="">— Seleccionar evento —</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="exportRegistros()">⬇ Excel</button>
+      </div>
+      <div style="margin-bottom:.75rem">
+        <input type="text" id="reg-search" placeholder="Buscar por nombre, email o documento…"
+               style="max-width:320px;border:1.5px solid var(--border);border-radius:9px;padding:.55rem .9rem;font-size:.88rem;outline:none"
+               oninput="renderRegistros()">
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Nombres</th>
+              <th>Apellidos</th>
+              <th>Documento</th>
+              <th>Email</th>
+              <th>Celular</th>
+              <th>WhatsApp</th>
+              <th>País</th>
+              <th>Email enviado</th>
+              <th>Fecha registro</th>
+            </tr>
+          </thead>
+          <tbody id="reg-tbody"></tbody>
+        </table>
+      </div>
+      <p id="reg-empty" class="empty-state" style="display:none">Selecciona un evento para ver sus registros.</p>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       TAB 3 — CORREOS
+  ═════════════════════════════════════════ -->
+  <div id="tab-correos" class="tab-panel">
+
+    <div class="panel-card">
+      <h3>📧 Enviar correo a participantes registrados</h3>
+      <div class="form-row">
+        <label>Evento destino <span>*</span></label>
+        <select id="email-evento-select">
+          <option value="">— Seleccionar evento —</option>
+        </select>
+      </div>
+      <div id="email-count-info" class="text-muted" style="margin-bottom:.75rem"></div>
+
+      <div class="form-row">
+        <label>Asunto <span>*</span></label>
+        <input type="text" id="email-asunto" placeholder="Ej. Confirmación de inscripción a {{evento}}">
+      </div>
+
+      <div class="form-row">
+        <label>Cuerpo del correo (HTML permitido) <span>*</span></label>
+        <div class="email-vars">
+          Variables personalizables — haz clic para insertar:
+          <span class="var-chip" onclick="insertVar('{{nombres}}')">{{nombres}}</span>
+          <span class="var-chip" onclick="insertVar('{{apellidos}}')">{{apellidos}}</span>
+          <span class="var-chip" onclick="insertVar('{{email}}')">{{email}}</span>
+          <span class="var-chip" onclick="insertVar('{{evento}}')">{{evento}}</span>
+        </div>
+        <textarea id="email-body" rows="10" placeholder="Hola {{nombres}},&#10;&#10;Te confirmamos tu registro al evento {{evento}}…"></textarea>
+      </div>
+
+      <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-top:.5rem">
+        <button class="btn btn-ghost" onclick="previewEmail()">👁 Vista previa</button>
+        <button class="btn btn-orange" id="btn-send-bulk" onclick="enviarMasivo()">Enviar a todos los registrados</button>
+      </div>
+      <p id="email-status" class="text-muted" style="margin-top:.75rem"></p>
+    </div>
+
+    <!-- Vista previa -->
+    <div class="panel-card" id="email-preview-card" style="display:none">
+      <h3>Vista previa del correo</h3>
+      <iframe id="email-preview-frame" style="width:100%;min-height:400px;border:1.5px solid var(--border);border-radius:10px"></iframe>
+    </div>
+  </div>
+
+</div><!-- /s-main -->
+
+<!-- ── MODAL: ENLACE DE REGISTRO ── -->
+<div class="modal-bg" id="modal-link">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-link')">×</button>
+    <h3>🔗 Enlace de registro</h3>
+    <p class="text-muted" style="margin-bottom:.75rem">Comparte este enlace con los participantes para que puedan inscribirse:</p>
+    <div style="display:flex;gap:.5rem">
+      <input type="text" id="modal-link-url" readonly style="flex:1;border:1.5px solid var(--border);border-radius:9px;padding:.65rem .9rem;font-size:.85rem;background:var(--off)">
+      <button class="btn btn-blue" onclick="copyLink()">Copiar</button>
+    </div>
+    <p id="link-copied" class="text-muted mt-1" style="display:none;color:var(--green)">✓ Enlace copiado</p>
+  </div>
+</div>
+
+<!-- ── TOAST ── -->
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════
+//  CONFIG
+// ═══════════════════════════════════════════════
+const SUPABASE_URL = 'https://uceswdscummpokmquecs.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjZXN3ZHNjdW1tcG9rbXF1ZWNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NjQyNzEsImV4cCI6MjA5MTM0MDI3MX0.omidUnKS78E78sng3U0ozEUme3ARWcUDWlKSm59zvzQ';
+const PASSWORD = 'merlin.admin';
+let db, eventos = [], registros = [], camposPersonalizados = [];
+
+// ── AUTH ──
+function checkAuth() {
+  if (document.getElementById('pwd').value === PASSWORD) {
+    document.getElementById('s-auth').style.display = 'none';
+    document.getElementById('s-main').style.display = 'block';
+    db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    init();
+  } else {
+    document.getElementById('auth-err').textContent = '⚠ Contraseña incorrecta';
+  }
+}
+document.getElementById('pwd').addEventListener('keydown', e => { if (e.key === 'Enter') checkAuth(); });
+
+// ── TABS ──
+function showTab(id) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// ── TOAST ──
+function toast(msg, dur = 3000) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), dur);
+}
+
+// ═══════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════
+async function init() {
+  await loadEventos();
+}
+
+// ═══════════════════════════════════════════════
+//  EVENTOS
+// ═══════════════════════════════════════════════
+async function loadEventos() {
+  const { data } = await db.from('events').select('*').order('created_at', { ascending: false });
+  eventos = data || [];
+
+  const tbody = document.getElementById('eventos-tbody');
+  tbody.innerHTML = '';
+
+  if (!eventos.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty-state">No hay eventos creados aún.</td></tr>`;
+  } else {
+    for (const ev of eventos) {
+      // Contar registrados
+      const { count } = await db.from('registrations').select('id', { count: 'exact', head: true }).eq('event_id', ev.id);
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><b>${ev.nombre}</b>${ev.descripcion ? `<br><span class="text-muted">${ev.descripcion.slice(0,60)}</span>` : ''}</td>
+        <td><span class="badge ${ev.tipo === 'programa' ? 'badge-blue' : 'badge-orange'}">${ev.tipo === 'programa' ? 'Programa' : 'Evento'}</span></td>
+        <td>${ev.fecha || '—'}</td>
+        <td><span class="badge ${ev.registration_open !== false ? 'badge-green' : 'badge-red'}">${ev.registration_open !== false ? 'Abierto' : 'Cerrado'}</span></td>
+        <td><b>${count || 0}</b></td>
+        <td>
+          <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+            <button class="btn btn-blue btn-sm" onclick="verEnlace('${ev.id}')">🔗 Enlace</button>
+            <button class="btn btn-ghost btn-sm" onclick="toggleRegistro('${ev.id}', ${ev.registration_open !== false})">${ev.registration_open !== false ? 'Cerrar registro' : 'Abrir registro'}</button>
+            <button class="btn btn-red btn-sm" onclick="eliminarEvento('${ev.id}')">🗑</button>
+          </div>
+        </td>`;
+      tbody.appendChild(tr);
+    }
+  }
+
+  // Poblar selects de otros tabs
+  poblarEventoSelects();
+}
+
+function poblarEventoSelects() {
+  ['reg-evento-select','email-evento-select'].forEach(id => {
+    const sel = document.getElementById(id);
+    const val = sel.value;
+    sel.innerHTML = '<option value="">— Seleccionar evento —</option>';
+    eventos.forEach(ev => {
+      const o = document.createElement('option');
+      o.value = ev.id; o.textContent = ev.nombre;
+      if (o.value === val) o.selected = true;
+      sel.appendChild(o);
+    });
+  });
+}
+
+// ── Banner preview ──
+let bannerUrl = null;
+function previewBanner(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  const img = document.getElementById('banner-preview');
+  img.src = url; img.style.display = 'block';
+  document.getElementById('banner-label').textContent = `✓ ${file.name}`;
+}
+
+// ── Campos personalizados ──
+let cfCounter = 0;
+function addCustomField() {
+  cfCounter++;
+  const id = `cf${cfCounter}`;
+  const div = document.createElement('div');
+  div.className = 'custom-field-row';
+  div.id = `cfrow-${id}`;
+  div.innerHTML = `
+    <input type="text" placeholder="Etiqueta del campo" id="cf-label-${id}">
+    <select id="cf-tipo-${id}">
+      <option value="text">Texto corto</option>
+      <option value="textarea">Texto largo</option>
+      <option value="email">Email</option>
+      <option value="number">Número</option>
+      <option value="select">Lista de opciones</option>
+      <option value="date">Fecha</option>
+      <option value="url">URL</option>
+    </select>
+    <label style="font-size:.78rem;white-space:nowrap;cursor:pointer">
+      <input type="checkbox" id="cf-req-${id}"> Requerido
+    </label>
+    <button class="btn btn-red btn-sm" onclick="document.getElementById('cfrow-${id}').remove()">✕</button>
+    <div id="cf-opts-wrap-${id}" style="grid-column:1/-1;display:none">
+      <input type="text" id="cf-opts-${id}" placeholder="Opciones separadas por coma: Opción A, Opción B, Opción C">
+    </div>`;
+  document.getElementById('custom-fields-list').appendChild(div);
+
+  document.getElementById(`cf-tipo-${id}`).addEventListener('change', function() {
+    document.getElementById(`cf-opts-wrap-${id}`).style.display = this.value === 'select' ? 'block' : 'none';
+  });
+}
+
+function getCustomFields() {
+  const fields = [];
+  document.querySelectorAll('.custom-field-row').forEach(row => {
+    const id     = row.id.replace('cfrow-', '');
+    const label  = document.getElementById(`cf-label-${id}`).value.trim();
+    const tipo   = document.getElementById(`cf-tipo-${id}`).value;
+    const req    = document.getElementById(`cf-req-${id}`).checked;
+    const optsEl = document.getElementById(`cf-opts-${id}`);
+    const opciones = optsEl ? optsEl.value.split(',').map(s => s.trim()).filter(Boolean) : [];
+    if (!label) return;
+    fields.push({ id, etiqueta: label, tipo, requerido: req, opciones });
+  });
+  return fields;
+}
+
+// ── Crear evento ──
+async function crearEvento() {
+  const nombre = document.getElementById('ev-nombre').value.trim();
+  const errEl  = document.getElementById('ev-err');
+  if (!nombre) { errEl.textContent = '⚠ El nombre es obligatorio.'; return; }
+  errEl.textContent = '';
+
+  // Subir banner si hay
+  bannerUrl = null;
+  const file = document.getElementById('banner-file').files[0];
+  if (file) {
+    const fd = new FormData();
+    fd.append('banner', file);
+    try {
+      const r = await fetch('/api/upload-banner', { method: 'POST', body: fd });
+      const d = await r.json();
+      if (d.url) bannerUrl = d.url;
+    } catch (e) { console.warn('Banner upload failed:', e); }
+  }
+
+  const campos = getCustomFields();
+  const payload = {
+    nombre,
+    tipo:              document.getElementById('ev-tipo').value,
+    fecha:             document.getElementById('ev-fecha').value.trim() || null,
+    lugar:             document.getElementById('ev-lugar').value.trim() || null,
+    descripcion:       document.getElementById('ev-desc').value.trim()  || null,
+    registration_open: document.getElementById('ev-open').value === 'true',
+    terminos_url:      document.getElementById('ev-terminos').value.trim() || null,
+    privacidad_url:    document.getElementById('ev-privacidad').value.trim() || null,
+    banner_url:        bannerUrl,
+    custom_fields:     campos,
+  };
+
+  const { error } = await db.from('events').insert([payload]);
+  if (error) { errEl.textContent = 'Error: ' + error.message; return; }
+
+  // Limpiar formulario
+  ['ev-nombre','ev-fecha','ev-lugar','ev-desc','ev-terminos','ev-privacidad'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('banner-preview').style.display = 'none';
+  document.getElementById('banner-label').textContent = '📷 Haz clic para subir un banner (JPG, PNG, WebP — máx. 5 MB)';
+  document.getElementById('banner-file').value = '';
+  document.getElementById('custom-fields-list').innerHTML = '';
+
+  toast('✓ Evento creado correctamente');
+  await loadEventos();
+}
+
+// ── Toggle registro abierto/cerrado ──
+async function toggleRegistro(id, actual) {
+  await db.from('events').update({ registration_open: !actual }).eq('id', id);
+  toast(`Registro ${!actual ? 'abierto' : 'cerrado'}`);
+  await loadEventos();
+}
+
+// ── Eliminar evento ──
+async function eliminarEvento(id) {
+  if (!confirm('¿Eliminar este evento? Se eliminarán también todos sus registros y datos de asistencia.')) return;
+  await db.from('attendance').delete().eq('event_id', id);
+  await db.from('participants').delete().eq('event_id', id);
+  await db.from('registrations').delete().eq('event_id', id);
+  await db.from('feedback').delete().eq('event_id', id);
+  await db.from('events').delete().eq('id', id);
+  toast('Evento eliminado');
+  await loadEventos();
+}
+
+// ── Ver enlace ──
+function verEnlace(eventId) {
+  const base = window.location.origin;
+  document.getElementById('modal-link-url').value = `${base}/registro?evento=${eventId}`;
+  document.getElementById('link-copied').style.display = 'none';
+  document.getElementById('modal-link').classList.add('open');
+}
+function copyLink() {
+  const inp = document.getElementById('modal-link-url');
+  inp.select(); document.execCommand('copy');
+  document.getElementById('link-copied').style.display = 'block';
+}
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ═══════════════════════════════════════════════
+//  REGISTROS
+// ═══════════════════════════════════════════════
+document.getElementById('reg-evento-select').addEventListener('change', async function() {
+  if (!this.value) { registros = []; renderRegistros(); return; }
+  await cargarRegistros(this.value);
+});
+
+async function cargarRegistros(eventoId) {
+  const { data } = await db.from('registrations').select('*').eq('event_id', eventoId).order('created_at');
+  registros = data || [];
+  renderRegistros();
+}
+
+function renderRegistros() {
+  const q     = document.getElementById('reg-search').value.toLowerCase();
+  const tbody = document.getElementById('reg-tbody');
+  const empty = document.getElementById('reg-empty');
+
+  const filtered = registros.filter(r =>
+    !q ||
+    `${r.nombres} ${r.apellidos}`.toLowerCase().includes(q) ||
+    (r.email || '').toLowerCase().includes(q) ||
+    (r.numero_documento || '').toLowerCase().includes(q)
+  );
+
+  if (!document.getElementById('reg-evento-select').value) {
+    tbody.innerHTML = '';
+    empty.textContent = 'Selecciona un evento para ver sus registros.';
+    empty.style.display = 'block'; return;
+  }
+  if (!filtered.length) {
+    tbody.innerHTML = '';
+    empty.textContent = registros.length ? 'No hay resultados para la búsqueda.' : 'No hay registros para este evento.';
+    empty.style.display = 'block'; return;
+  }
+  empty.style.display = 'none';
+
+  tbody.innerHTML = '';
+  filtered.forEach((r, i) => {
+    const tr = document.createElement('tr');
+    const fecha = r.created_at ? new Date(r.created_at).toLocaleDateString('es-PE') : '—';
+    tr.innerHTML = `
+      <td>${i + 1}</td>
+      <td>${r.nombres}</td>
+      <td>${r.apellidos}</td>
+      <td><span class="text-muted">${r.tipo_documento || ''}</span> ${r.numero_documento || '—'}</td>
+      <td>${r.email}</td>
+      <td>${r.celular_codigo || ''} ${r.celular || '—'}</td>
+      <td>${r.whatsapp_codigo || ''} ${r.whatsapp || '—'}</td>
+      <td>${r.pais_residencia || '—'}</td>
+      <td><span class="badge ${r.email_enviado ? 'badge-green' : 'badge-gray'}">${r.email_enviado ? 'Enviado' : 'Pendiente'}</span></td>
+      <td>${fecha}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── Exportar ──
+function exportRegistros() {
+  if (!registros.length) { toast('No hay registros para exportar'); return; }
+  const rows = registros.map((r, i) => ({
+    '#':              i + 1,
+    'Nombres':        r.nombres,
+    'Apellidos':      r.apellidos,
+    'Tipo Doc.':      r.tipo_documento || '',
+    'N° Documento':   r.numero_documento || '',
+    'Email':          r.email,
+    'Código Celular': r.celular_codigo || '',
+    'Celular':        r.celular || '',
+    'Código WA':      r.whatsapp_codigo || '',
+    'WhatsApp':       r.whatsapp || '',
+    'País procedencia': r.pais_procedencia || '',
+    'País residencia':  r.pais_residencia || '',
+    'Fecha nac.':     r.fecha_nacimiento || '',
+    'Género':         r.genero || '',
+    'Email enviado':  r.email_enviado ? 'Sí' : 'No',
+    'Registro':       r.created_at ? new Date(r.created_at).toLocaleString('es-PE') : '',
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Registrados');
+  XLSX.writeFile(wb, `registrados_${Date.now()}.xlsx`);
+}
+
+// ═══════════════════════════════════════════════
+//  CORREOS
+// ═══════════════════════════════════════════════
+document.getElementById('email-evento-select').addEventListener('change', async function() {
+  const ev = eventos.find(e => e.id === this.value);
+  if (!ev) { document.getElementById('email-count-info').textContent = ''; return; }
+  const { count } = await db.from('registrations').select('id', { count: 'exact', head: true }).eq('event_id', ev.id);
+  document.getElementById('email-count-info').textContent =
+    `Este evento tiene ${count || 0} registrado(s). Se enviará un correo a cada uno.`;
+});
+
+function insertVar(v) {
+  const ta = document.getElementById('email-body');
+  const s  = ta.selectionStart, e = ta.selectionEnd;
+  ta.value = ta.value.slice(0, s) + v + ta.value.slice(e);
+  ta.selectionStart = ta.selectionEnd = s + v.length;
+  ta.focus();
+}
+
+function previewEmail() {
+  const html = document.getElementById('email-body').value;
+  const sample = html
+    .replace(/\{\{nombres\}\}/g, 'Juan')
+    .replace(/\{\{apellidos\}\}/g, 'García')
+    .replace(/\{\{email\}\}/g, 'juan@ejemplo.com')
+    .replace(/\{\{evento\}\}/g, 'Nombre del Evento');
+  const frame = document.getElementById('email-preview-frame');
+  frame.srcdoc = sample;
+  document.getElementById('email-preview-card').style.display = 'block';
+}
+
+async function enviarMasivo() {
+  const eventoId = document.getElementById('email-evento-select').value;
+  const asunto   = document.getElementById('email-asunto').value.trim();
+  const html     = document.getElementById('email-body').value.trim();
+
+  if (!eventoId) return toast('Selecciona un evento primero');
+  if (!asunto)   return toast('El asunto es obligatorio');
+  if (!html)     return toast('El cuerpo del correo es obligatorio');
+
+  const ev = eventos.find(e => e.id === eventoId);
+
+  const { data: regs } = await db.from('registrations')
+    .select('id, nombres, apellidos, email')
+    .eq('event_id', eventoId);
+
+  if (!regs || !regs.length) return toast('No hay registros en este evento');
+
+  const confirmMsg = `Se enviarán ${regs.length} correos. ¿Continuar?`;
+  if (!confirm(confirmMsg)) return;
+
+  const btn    = document.getElementById('btn-send-bulk');
+  const status = document.getElementById('email-status');
+  btn.disabled = true;
+  status.textContent = 'Enviando…';
+
+  const recipients = regs.map(r => ({
+    nombres:    r.nombres,
+    apellidos:  r.apellidos,
+    email:      r.email,
+    evento:     ev ? ev.nombre : '',
+  }));
+
+  const res = await fetch('/api/send-bulk-email', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ recipients, subject: asunto, html_template: html }),
+  });
+  const d = await res.json();
+
+  if (d.error) {
+    status.textContent = 'Error: ' + d.error;
+    status.style.color = 'var(--red)';
+  } else {
+    status.textContent = `✓ Enviados: ${d.ok}   ✗ Fallidos: ${d.err}`;
+    status.style.color = d.err === 0 ? 'var(--green)' : 'var(--orange)';
+
+    // Marcar como email_enviado en Supabase
+    const sentIds = d.results.filter(r => r.ok).map(r => r.email);
+    for (const reg of regs) {
+      if (sentIds.includes(reg.email)) {
+        await db.from('registrations').update({ email_enviado: true }).eq('id', reg.id);
+      }
+    }
+  }
+
+  btn.disabled = false;
+}
+
+// Click fuera del modal lo cierra
+document.querySelectorAll('.modal-bg').forEach(bg => {
+  bg.addEventListener('click', e => { if (e.target === bg) bg.classList.remove('open'); });
+});
+</script>
+</body>
+</html>
