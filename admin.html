@@ -498,8 +498,8 @@ async function loadEventos() {
     tbody.innerHTML = `<tr><td colspan="6" class="empty-state">No hay eventos creados aún.</td></tr>`;
   } else {
     for (const ev of eventos) {
-      // Contar registrados
-      const { count } = await db.from('registrations').select('id', { count: 'exact', head: true }).eq('event_id', ev.id);
+      // Contar participantes (tabla principal)
+      const { count } = await db.from('participants').select('id', { count: 'exact', head: true }).eq('event_id', ev.id);
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td><b>${ev.nombre}</b>${ev.descripcion ? `<br><span class="text-muted">${ev.descripcion.slice(0,60)}</span>` : ''}</td>
@@ -685,8 +685,32 @@ document.getElementById('reg-evento-select').addEventListener('change', async fu
 });
 
 async function cargarRegistros(eventoId) {
-  const { data } = await db.from('registrations').select('*').eq('event_id', eventoId).order('created_at');
-  registros = data || [];
+  // Cargar de participants (todos) y enriquecer con datos de registrations si existen
+  const { data: parts } = await db.from('participants').select('*').eq('event_id', eventoId).order('created_at');
+  const { data: regs }  = await db.from('registrations').select('*').eq('event_id', eventoId);
+
+  const regsMap = {};
+  (regs || []).forEach(r => { regsMap[r.numero_documento] = r; });
+
+  registros = (parts || []).map(p => {
+    const r = regsMap[p.id_number] || {};
+    return {
+      _pid:            p.id,
+      nombres:         r.nombres  || p.nombre  || '',
+      apellidos:       r.apellidos|| p.apellido || '',
+      tipo_documento:  r.tipo_documento || '—',
+      numero_documento:r.numero_documento || p.id_number || '—',
+      email:           r.email    || '—',
+      celular_codigo:  r.celular_codigo  || '',
+      celular:         r.celular  || '—',
+      whatsapp_codigo: r.whatsapp_codigo || '',
+      whatsapp:        r.whatsapp || '—',
+      pais_residencia: r.pais_residencia || '—',
+      email_enviado:   r.email_enviado   || false,
+      created_at:      p.created_at,
+      _desde_form:     !!r.email,
+    };
+  });
   renderRegistros();
 }
 
@@ -718,15 +742,18 @@ function renderRegistros() {
   filtered.forEach((r, i) => {
     const tr = document.createElement('tr');
     const fecha = r.created_at ? new Date(r.created_at).toLocaleDateString('es-PE') : '—';
+    const fuente = r._desde_form
+      ? '<span class="badge badge-green" title="Registrado vía formulario">Formulario</span>'
+      : '<span class="badge badge-gray" title="Añadido manualmente">Manual</span>';
     tr.innerHTML = `
       <td>${i + 1}</td>
-      <td>${r.nombres}</td>
+      <td>${r.nombres} ${fuente}</td>
       <td>${r.apellidos}</td>
-      <td><span class="text-muted">${r.tipo_documento || ''}</span> ${r.numero_documento || '—'}</td>
+      <td><span class="text-muted">${r.tipo_documento}</span> ${r.numero_documento}</td>
       <td>${r.email}</td>
-      <td>${r.celular_codigo || ''} ${r.celular || '—'}</td>
-      <td>${r.whatsapp_codigo || ''} ${r.whatsapp || '—'}</td>
-      <td>${r.pais_residencia || '—'}</td>
+      <td>${r.celular_codigo} ${r.celular}</td>
+      <td>${r.whatsapp_codigo} ${r.whatsapp}</td>
+      <td>${r.pais_residencia}</td>
       <td><span class="badge ${r.email_enviado ? 'badge-green' : 'badge-gray'}">${r.email_enviado ? 'Enviado' : 'Pendiente'}</span></td>
       <td>${fecha}</td>`;
     tbody.appendChild(tr);
@@ -766,9 +793,9 @@ function exportRegistros() {
 document.getElementById('email-evento-select').addEventListener('change', async function() {
   const ev = eventos.find(e => e.id === this.value);
   if (!ev) { document.getElementById('email-count-info').textContent = ''; return; }
-  const { count } = await db.from('registrations').select('id', { count: 'exact', head: true }).eq('event_id', ev.id);
+  const { count } = await db.from('participants').select('id', { count: 'exact', head: true }).eq('event_id', ev.id);
   document.getElementById('email-count-info').textContent =
-    `Este evento tiene ${count || 0} registrado(s). Se enviará un correo a cada uno.`;
+    `Este evento tiene ${count || 0} participante(s). Solo se enviará correo a quienes tienen email registrado.`;
 });
 
 function insertVar(v) {
@@ -804,9 +831,10 @@ async function enviarMasivo() {
 
   const { data: regs } = await db.from('registrations')
     .select('id, nombres, apellidos, email')
-    .eq('event_id', eventoId);
+    .eq('event_id', eventoId)
+    .not('email', 'is', null);
 
-  if (!regs || !regs.length) return toast('No hay registros en este evento');
+  if (!regs || !regs.length) return toast('No hay participantes con email en este evento. Solo los registrados vía formulario tienen email.');
 
   const confirmMsg = `Se enviarán ${regs.length} correos. ¿Continuar?`;
   if (!confirm(confirmMsg)) return;
