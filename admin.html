@@ -487,7 +487,10 @@ async function init() {
 // ═══════════════════════════════════════════════
 //  EVENTOS
 // ═══════════════════════════════════════════════
+let _loadingEventos = false;
 async function loadEventos() {
+  if (_loadingEventos) return;
+  _loadingEventos = true;
   const { data } = await db.from('events').select('*').order('created_at', { ascending: false });
   eventos = data || [];
 
@@ -520,6 +523,7 @@ async function loadEventos() {
 
   // Poblar selects de otros tabs
   poblarEventoSelects();
+  _loadingEventos = false;
 }
 
 function poblarEventoSelects() {
