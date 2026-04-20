@@ -95,8 +95,7 @@ app.post('/api/send-bulk-email', async (req, res) => {
   const token = await mdtToken();
   if (!token) return res.status(503).json({ error: 'MDT Agent no disponible' });
 
-  const results = [];
-  for (const r of recipients) {
+  const sendOne = async (r) => {
     const vars = [
       [/\{\{nombres\}\}/g,   r.nombres   || ''],
       [/\{\{apellidos\}\}/g, r.apellidos || ''],
@@ -112,12 +111,19 @@ app.post('/api/send-bulk-email', async (req, res) => {
         body:    JSON.stringify({ to_email: r.email, to_name: `${r.nombres} ${r.apellidos}`, subject: personalizedSubject, html: personalizedHtml })
       });
       const d = await resp.json();
-      results.push({ email: r.email, ok: !d.error, detail: d });
+      return { email: r.email, ok: !d.error, detail: d };
     } catch (e) {
-      results.push({ email: r.email, ok: false, detail: { error: e.message } });
+      return { email: r.email, ok: false, detail: { error: e.message } };
     }
-    // Pequeña pausa para no saturar el servidor
-    await new Promise(resolve => setTimeout(resolve, 250));
+  };
+
+  // Enviar en paralelo de 20 en 20 para no saturar ZeptoMail
+  const CONCURRENCY = 20;
+  const results = [];
+  for (let i = 0; i < recipients.length; i += CONCURRENCY) {
+    const batch = recipients.slice(i, i + CONCURRENCY);
+    const batchResults = await Promise.all(batch.map(sendOne));
+    results.push(...batchResults);
   }
 
   const ok  = results.filter(x => x.ok).length;
