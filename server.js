@@ -6,6 +6,24 @@ const fs       = require('fs');
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
+
+// ── Rate limiting simple por IP (sin dependencias externas) ──
+const _ipHits = new Map();
+function rateLimit(maxPerMinute) {
+  return (req, res, next) => {
+    const ip  = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
+    const now = Date.now();
+    const key = ip;
+    const rec = _ipHits.get(key) || { count: 0, start: now };
+    if (now - rec.start > 60_000) { rec.count = 0; rec.start = now; }
+    rec.count++;
+    _ipHits.set(key, rec);
+    if (rec.count > maxPerMinute) {
+      return res.status(429).json({ error: 'Demasiadas solicitudes. Intenta en un minuto.' });
+    }
+    next();
+  };
+}
 app.use(express.urlencoded({ extended: true }));
 
 // ── Archivos estáticos ──
@@ -65,7 +83,7 @@ app.post('/api/upload-banner', upload.single('banner'), (req, res) => {
 });
 
 // ── POST /api/send-email — proxy hacia MDT Agent ──
-app.post('/api/send-email', async (req, res) => {
+app.post('/api/send-email', rateLimit(10), async (req, res) => {
   const { to_email, to_name, subject, html } = req.body;
   if (!to_email || !html) return res.status(400).json({ error: 'Faltan to_email o html' });
 

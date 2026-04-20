@@ -227,17 +227,17 @@
             <input type="email" id="f-email" placeholder="correo@ejemplo.com" required>
           </div>
           <div class="col-full">
-            <label>Celular</label>
+            <label>Celular <span class="req">*</span></label>
             <div class="phone-group">
               <select id="f-cel-codigo"></select>
-              <input type="tel" id="f-celular" placeholder="Número sin código país">
+              <input type="tel" id="f-celular" placeholder="Número sin código país" required>
             </div>
           </div>
           <div class="col-full">
-            <label>WhatsApp</label>
+            <label>WhatsApp <span class="req">*</span></label>
             <div class="phone-group">
               <select id="f-wa-codigo"></select>
-              <input type="tel" id="f-whatsapp" placeholder="Número sin código país">
+              <input type="tel" id="f-whatsapp" placeholder="Número sin código país" required>
             </div>
           </div>
         </div>
@@ -587,6 +587,12 @@ document.getElementById('reg-form').addEventListener('submit', async function(e)
   if (!tipoDoc)   return showErr('Selecciona un tipo de documento.', 'f-tipo-doc');
   if (!numDoc)    return showErr('El número de documento es obligatorio.', 'f-num-doc');
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showErr('Ingresa un correo válido.', 'f-email');
+  const celular  = document.getElementById('f-celular').value.trim();
+  const whatsapp = document.getElementById('f-whatsapp').value.trim();
+  if (!celular)  return showErr('El número de celular es obligatorio.', 'f-celular');
+  if (!/^\d{6,15}$/.test(celular))  return showErr('El celular debe contener solo dígitos (6-15).', 'f-celular');
+  if (!whatsapp) return showErr('El número de WhatsApp es obligatorio.', 'f-whatsapp');
+  if (!/^\d{6,15}$/.test(whatsapp)) return showErr('El WhatsApp debe contener solo dígitos (6-15).', 'f-whatsapp');
   if (!terminos)  return showErr('Debes aceptar los Términos y Condiciones.');
   if (!privacidad)return showErr('Debes aceptar la Política de Privacidad.');
 
