@@ -886,6 +886,57 @@ async function exportRegistros() {
   toast(`✓ Excel exportado (${rows.length} registros)`);
 }
 
+// ── Envuelve el contenido del editor en la plantilla branded de Merlin ──
+function wrapEmailHTML(content, ev) {
+  const bannerUrl = ev && ev.banner_url
+    ? (ev.banner_url.startsWith('http') ? ev.banner_url : 'https://events.merlin-global.com' + ev.banner_url)
+    : null;
+  // Si el contenido no tiene tags HTML, convertir saltos de línea a <br>
+  const hasHtml = /<[a-z][\s\S]*>/i.test(content);
+  const body = hasHtml ? content : content.replace(/\n/g, '<br>');
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${ev ? ev.nombre : 'Merlin Events'}</title></head>
+<body style="margin:0;padding:0;background-color:#f0f5fb;font-family:Arial,Helvetica,sans-serif">
+<table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f0f5fb">
+<tr><td align="center" style="padding:20px 10px">
+<table border="0" cellpadding="0" cellspacing="0" width="600" style="background-color:#ffffff;max-width:600px">
+
+  ${bannerUrl ? `<tr><td style="padding:0">
+    <img src="${bannerUrl}" alt="${ev.nombre}" width="600" style="display:block;width:100%;max-height:220px;object-fit:cover">
+  </td></tr>` : ''}
+
+  <tr><td align="center" bgcolor="#0f3d6e" style="padding:24px 30px;background-color:#0f3d6e">
+    <img src="https://events.merlin-global.com/merlindata_blanco_sin%20fondo.png" alt="Merlin" height="36" style="display:block;margin:0 auto 12px">
+    ${ev ? `<p style="margin:0 0 6px 0;color:#e9721f;font-size:11px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;font-family:Arial,sans-serif">${ev.tipo === 'programa' ? 'PROGRAMA FORMATIVO' : 'EVENTO'}</p>
+    <h1 style="margin:0;color:#ffffff;font-size:20px;font-weight:bold;font-family:Arial,sans-serif">${ev.nombre}</h1>` : ''}
+  </td></tr>
+
+  <tr><td style="padding:30px;color:#1a2a3a;font-size:14px;line-height:22px;font-family:Arial,sans-serif">
+    ${body}
+  </td></tr>
+
+  <tr><td align="center" bgcolor="#0f3d6e" style="padding:20px 30px;background-color:#0f3d6e">
+    <table border="0" cellpadding="0" cellspacing="0">
+      <tr>
+        <td align="center" style="padding:0 4px"><a href="https://facebook.com/merlin" style="display:inline-block;background-color:#1877f2;color:#ffffff;text-decoration:none;padding:5px 10px;font-size:11px;font-family:Arial,sans-serif">Facebook</a></td>
+        <td align="center" style="padding:0 4px"><a href="https://linkedin.com/company/merlin" style="display:inline-block;background-color:#0077b5;color:#ffffff;text-decoration:none;padding:5px 10px;font-size:11px;font-family:Arial,sans-serif">LinkedIn</a></td>
+        <td align="center" style="padding:0 4px"><a href="https://instagram.com/merlin" style="display:inline-block;background-color:#e1306c;color:#ffffff;text-decoration:none;padding:5px 10px;font-size:11px;font-family:Arial,sans-serif">Instagram</a></td>
+        <td align="center" style="padding:0 4px"><a href="https://youtube.com/@merlin" style="display:inline-block;background-color:#ff0000;color:#ffffff;text-decoration:none;padding:5px 10px;font-size:11px;font-family:Arial,sans-serif">YouTube</a></td>
+      </tr>
+    </table>
+    <p style="margin:10px 0 2px 0;color:rgba(255,255,255,0.6);font-size:11px;font-family:Arial,sans-serif">support@mdt.edu.pe | merlin-global.com</p>
+    <p style="margin:0;color:rgba(255,255,255,0.4);font-size:10px;font-family:Arial,sans-serif">&copy; 2026 Asociacion Merlin Data Technology</p>
+  </td></tr>
+
+</table>
+</td></tr>
+</table>
+</body></html>`;
+}
+
 // ═══════════════════════════════════════════════
 //  CORREOS
 // ═══════════════════════════════════════════════
@@ -906,12 +957,15 @@ function insertVar(v) {
 }
 
 function previewEmail() {
+  const eventoId = document.getElementById('email-evento-select').value;
+  const ev = eventos.find(e => e.id === eventoId) || null;
   const html = document.getElementById('email-body').value;
-  const sample = html
+  const wrapped = wrapEmailHTML(html, ev);
+  const sample = wrapped
     .replace(/\{\{nombres\}\}/g, 'Juan')
     .replace(/\{\{apellidos\}\}/g, 'García')
     .replace(/\{\{email\}\}/g, 'juan@ejemplo.com')
-    .replace(/\{\{evento\}\}/g, 'Nombre del Evento');
+    .replace(/\{\{evento\}\}/g, ev ? ev.nombre : 'Nombre del Evento');
   const frame = document.getElementById('email-preview-frame');
   frame.srcdoc = sample;
   document.getElementById('email-preview-card').style.display = 'block';
@@ -927,6 +981,7 @@ async function enviarMasivo() {
   if (!html)     return toast('El cuerpo del correo es obligatorio');
 
   const ev = eventos.find(e => e.id === eventoId);
+  const htmlWrapped = wrapEmailHTML(html, ev);
 
   // Cargar TODOS los registros con email (paginado internamente)
   const status = document.getElementById('email-status');
@@ -972,7 +1027,7 @@ async function enviarMasivo() {
       const res = await fetch('/api/send-bulk-email', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ recipients, subject: asunto, html_template: html }),
+        body:    JSON.stringify({ recipients, subject: asunto, html_template: htmlWrapped }),
       });
       const d = await res.json();
       if (!d.error) {
