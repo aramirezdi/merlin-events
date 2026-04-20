@@ -674,30 +674,93 @@ document.getElementById('reg-form').addEventListener('submit', async function(e)
   }
 });
 
-// ── Plantilla de email de confirmación ──
+// ── Plantilla de email estilo MDT Agent ──
 function buildConfirmationEmail(nombres, apellidos, ev) {
-  const fecha = ev.fecha ? `<p><b>Fecha:</b> ${ev.fecha}</p>` : '';
-  const lugar = ev.lugar ? `<p><b>Lugar:</b> ${ev.lugar}</p>` : '';
-  return `
-  <div style="font-family:'Inter',Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.1)">
-    <div style="background:linear-gradient(135deg,#0f3d6e,#1a5fa5);padding:2rem 2rem 1.5rem;text-align:center">
-      <h1 style="color:#fff;font-size:1.4rem;margin:0">¡Registro confirmado!</h1>
-      <p style="color:rgba(255,255,255,.8);margin:.5rem 0 0;font-size:.9rem">${ev.nombre}</p>
-    </div>
-    <div style="padding:1.75rem 2rem">
-      <p>Hola <b>${nombres} ${apellidos}</b>,</p>
-      <p style="margin-top:.75rem">Tu inscripción ha sido recibida exitosamente. A continuación los detalles del evento:</p>
-      <div style="background:#f0f5fb;border-radius:10px;padding:1rem 1.25rem;margin:1.25rem 0">
-        <p><b>Evento:</b> ${ev.nombre}</p>
-        ${fecha}${lugar}
-        ${ev.descripcion ? `<p><b>Descripción:</b> ${ev.descripcion}</p>` : ''}
-      </div>
-      <p style="color:#7a98bb;font-size:.82rem;margin-top:1.5rem">Este es un correo automático. Por favor no respondas a este mensaje.</p>
-    </div>
-    <div style="background:#f0f5fb;padding:1rem 2rem;text-align:center">
-      <p style="font-size:.75rem;color:#7a98bb">&copy; 2026 Asociación Merlin Data Technology</p>
-    </div>
-  </div>`;
+  const bannerHtml = ev.banner_url
+    ? `<img src="${ev.banner_url.startsWith('http') ? ev.banner_url : 'https://events.merlin-global.com' + ev.banner_url}" alt="${ev.nombre}" style="width:100%;max-height:220px;object-fit:cover;display:block">`
+    : `<div style="background:linear-gradient(135deg,#0f3d6e 0%,#1a5fa5 60%,#2272c3 100%);padding:2.5rem 2rem;text-align:center">
+        <img src="https://events.merlin-global.com/merlindata_blanco_sin%20fondo.png" alt="Merlin" style="height:40px;margin-bottom:1rem;display:block;margin:0 auto 1rem">
+        <p style="color:#e9721f;font-family:Arial,sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;margin:0">${ev.nombre}</p>
+       </div>`;
+
+  const tipoLabel = ev.tipo === 'programa' ? 'Programa formativo' : 'Evento';
+  const infoRows = [
+    ev.fecha      ? `<tr><td style="padding:.5rem .75rem;border-bottom:1px solid #eee"><span style="color:#e9721f;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em">📅 FECHA</span><br><span style="font-size:.9rem;color:#1a2a3a">${ev.fecha}</span></td></tr>` : '',
+    ev.lugar      ? `<tr><td style="padding:.5rem .75rem;border-bottom:1px solid #eee"><span style="color:#e9721f;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em">📍 LUGAR</span><br><span style="font-size:.9rem;color:#1a2a3a">${ev.lugar}</span></td></tr>` : '',
+    `<tr><td style="padding:.5rem .75rem"><span style="color:#e9721f;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em">🎓 TIPO</span><br><span style="font-size:.9rem;color:#1a2a3a">${tipoLabel}</span></td></tr>`,
+  ].join('');
+
+  return `<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f0f5fb;font-family:Arial,Helvetica,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f5fb;padding:24px 0">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.1)">
+
+  <!-- BANNER -->
+  <tr><td style="padding:0">${bannerHtml}</td></tr>
+
+  <!-- TÍTULO -->
+  <tr><td style="background:#0f3d6e;padding:1.25rem 2rem;text-align:center">
+    <p style="color:#e9721f;font-size:.72rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;margin:0 0 .35rem">CONFIRMACIÓN DE REGISTRO</p>
+    <h1 style="color:#ffffff;font-size:1.3rem;margin:0;font-weight:700">${ev.nombre}</h1>
+  </td></tr>
+
+  <!-- CUERPO -->
+  <tr><td style="padding:2rem">
+    <p style="color:#1a2a3a;font-size:1rem;margin:0 0 1rem">Hola <strong>${nombres} ${apellidos}</strong>,</p>
+    <p style="color:#4a6a8a;font-size:.92rem;line-height:1.6;margin:0 0 1.5rem">
+      ¡Tu inscripción ha sido recibida exitosamente! Estamos emocionados de tenerte con nosotros.
+      A continuación encontrarás los detalles de tu registro.
+    </p>
+
+    <!-- DETALLES -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f5fb;border-radius:10px;overflow:hidden;margin-bottom:1.5rem">
+      ${infoRows}
+    </table>
+
+    ${ev.descripcion ? `<p style="color:#4a6a8a;font-size:.88rem;line-height:1.6;margin:0 0 1.5rem;padding:1rem;background:#fff3ea;border-left:3px solid #e9721f;border-radius:0 8px 8px 0">${ev.descripcion}</p>` : ''}
+
+    <!-- BOTONES -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:1.5rem">
+      <tr>
+        <td align="center" style="padding:0 .5rem">
+          <a href="https://wa.me/51985053559" style="display:inline-block;background:#25d366;color:#fff;text-decoration:none;padding:.75rem 1.5rem;border-radius:8px;font-size:.85rem;font-weight:700">💬 WhatsApp Soporte</a>
+        </td>
+        <td align="center" style="padding:0 .5rem">
+          <a href="https://merlin-global.com" style="display:inline-block;background:#1a5fa5;color:#fff;text-decoration:none;padding:.75rem 1.5rem;border-radius:8px;font-size:.85rem;font-weight:700">🎓 Merlin Global</a>
+        </td>
+      </tr>
+    </table>
+
+    <p style="color:#7a98bb;font-size:.78rem;text-align:center;margin:0">Correo generado automáticamente · No responder directamente.</p>
+  </td></tr>
+
+  <!-- FOOTER -->
+  <tr><td style="background:#0f3d6e;padding:1.25rem 2rem">
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td align="center" style="padding-bottom:.75rem">
+          <img src="https://events.merlin-global.com/merlindata_blanco_sin%20fondo.png" alt="Merlin" style="height:32px">
+        </td>
+      </tr>
+      <tr><td align="center" style="padding-bottom:.75rem">
+        <a href="https://facebook.com/merlin" style="display:inline-block;background:#1877f2;color:#fff;text-decoration:none;padding:.3rem .7rem;border-radius:5px;font-size:.72rem;margin:0 3px">f Facebook</a>
+        <a href="https://linkedin.com/company/merlin" style="display:inline-block;background:#0077b5;color:#fff;text-decoration:none;padding:.3rem .7rem;border-radius:5px;font-size:.72rem;margin:0 3px">in LinkedIn</a>
+        <a href="https://instagram.com/merlin" style="display:inline-block;background:#e1306c;color:#fff;text-decoration:none;padding:.3rem .7rem;border-radius:5px;font-size:.72rem;margin:0 3px">📷 Instagram</a>
+        <a href="https://youtube.com/@merlin" style="display:inline-block;background:#ff0000;color:#fff;text-decoration:none;padding:.3rem .7rem;border-radius:5px;font-size:.72rem;margin:0 3px">▶ YouTube</a>
+      </td></tr>
+      <tr><td align="center">
+        <p style="color:rgba(255,255,255,.5);font-size:.7rem;margin:0">support@mdt.edu.pe &nbsp;|&nbsp; merlin-global.com</p>
+        <p style="color:rgba(255,255,255,.35);font-size:.65rem;margin:.35rem 0 0">&copy; 2026 Asociación Merlin Data Technology — Todos los derechos reservados</p>
+      </td></tr>
+    </table>
+  </td></tr>
+
+</table>
+</td></tr>
+</table>
+</body></html>`;
 }
 
 // Arrancar
