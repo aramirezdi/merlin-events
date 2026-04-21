@@ -467,7 +467,7 @@
 
     <!-- Tabla historial -->
     <div class="panel-card">
-      <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-bottom:1rem">
+      <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-bottom:.75rem">
         <h3 style="margin:0">📋 Registros de envío</h3>
         <div style="display:flex;gap:.4rem;flex-wrap:wrap">
           <button class="btn btn-sm btn-ghost" id="hf-todos"    onclick="filtrarHistorial('todos')"   style="border:1.5px solid var(--border)">Todos</button>
@@ -475,8 +475,37 @@
           <button class="btn btn-sm btn-red"   id="hf-errores"  onclick="filtrarHistorial('err')">Con error</button>
         </div>
         <input type="text" id="hist-search" placeholder="Buscar por nombre o email…"
-          style="flex:1;min-width:180px;max-width:280px;border:1.5px solid var(--border);border-radius:9px;padding:.5rem .85rem;font-size:.85rem;outline:none"
+          style="flex:1;min-width:180px;max-width:260px;border:1.5px solid var(--border);border-radius:9px;padding:.5rem .85rem;font-size:.85rem;outline:none"
           oninput="renderHistorial()">
+        <button class="btn btn-sm" onclick="imprimirHistorial()"
+          style="border:1.5px solid #1a7a4a;color:#1a7a4a;border-radius:9px;padding:.45rem .9rem;font-size:.82rem;background:#fff;cursor:pointer;white-space:nowrap">
+          🖨 Imprimir / PDF
+        </button>
+      </div>
+      <!-- Filtros de fecha y evento -->
+      <div style="display:flex;flex-wrap:wrap;gap:.6rem;align-items:flex-end;margin-bottom:1rem;padding:.75rem;background:var(--off);border-radius:10px;border:1.5px solid var(--border)">
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <label style="font-size:.72rem;color:var(--muted);font-weight:600">DESDE</label>
+          <input type="date" id="hist-desde" onchange="renderHistorial()"
+            style="border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.83rem;outline:none">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <label style="font-size:.72rem;color:var(--muted);font-weight:600">HASTA</label>
+          <input type="date" id="hist-hasta" onchange="renderHistorial()"
+            style="border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.83rem;outline:none">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <label style="font-size:.72rem;color:var(--muted);font-weight:600">EVENTO</label>
+          <select id="hist-evento" onchange="renderHistorial()"
+            style="border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.83rem;min-width:180px;outline:none">
+            <option value="">Todos los eventos</option>
+          </select>
+        </div>
+        <button onclick="limpiarFiltrosHist()"
+          style="border:1.5px solid var(--border);border-radius:8px;padding:.4rem .8rem;font-size:.82rem;background:#fff;cursor:pointer;color:var(--muted)">
+          Limpiar filtros
+        </button>
+        <span id="hist-contador" style="font-size:.8rem;color:var(--muted);margin-left:auto;align-self:center"></span>
       </div>
       <div class="table-wrap">
         <table>
@@ -551,7 +580,7 @@ function showTab(id) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   event.target.classList.add('active');
-  if (id === 'tab-historial' && !_historialData.length) cargarHistorial();
+  if (id === 'tab-historial') { poblarEventosHist(); if (!_historialData.length) cargarHistorial(); }
 }
 
 // ── TOAST ──
@@ -1184,22 +1213,57 @@ function filtrarHistorial(f) {
   renderHistorial();
 }
 
-function renderHistorial() {
-  const q = document.getElementById('hist-search').value.toLowerCase();
-  const tbody  = document.getElementById('hist-tbody');
-  const empty  = document.getElementById('hist-empty');
-  const pagDiv = document.getElementById('hist-pag');
+function _histGetFiltered() {
+  const q      = (document.getElementById('hist-search')?.value || '').toLowerCase();
+  const desde  = document.getElementById('hist-desde')?.value  || '';
+  const hasta  = document.getElementById('hist-hasta')?.value  || '';
+  const evento = (document.getElementById('hist-evento')?.value || '').toLowerCase();
 
-  let filtered = _historialData.filter(e => {
-    if (_histFiltro === 'ok'  && !e.ok)  return false;
-    if (_histFiltro === 'err' &&  e.ok)  return false;
+  return _historialData.filter(e => {
+    if (_histFiltro === 'ok'  && !e.ok) return false;
+    if (_histFiltro === 'err' &&  e.ok) return false;
     if (q && !(
       (e.n || '').toLowerCase().includes(q) ||
       (e.e || '').toLowerCase().includes(q) ||
       (e.asunto || '').toLowerCase().includes(q)
     )) return false;
+    const ts = (e.ts || '').substring(0, 10);
+    if (desde && ts < desde) return false;
+    if (hasta && ts > hasta) return false;
+    if (evento && !(e.asunto || '').toLowerCase().includes(evento)) return false;
     return true;
   });
+}
+
+function limpiarFiltrosHist() {
+  const ids = ['hist-desde','hist-hasta','hist-evento','hist-search'];
+  ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  _histPage = 0;
+  renderHistorial();
+}
+
+function poblarEventosHist() {
+  const sel = document.getElementById('hist-evento');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Todos los eventos</option>';
+  (eventos || []).forEach(ev => {
+    const opt = document.createElement('option');
+    opt.value = ev.nombre || ev.id;
+    opt.textContent = ev.nombre || ev.id;
+    sel.appendChild(opt);
+  });
+  sel.value = current;
+}
+
+function renderHistorial() {
+  const tbody  = document.getElementById('hist-tbody');
+  const empty  = document.getElementById('hist-empty');
+  const pagDiv = document.getElementById('hist-pag');
+  const ctr    = document.getElementById('hist-contador');
+
+  const filtered = _histGetFiltered();
+  if (ctr) ctr.textContent = filtered.length.toLocaleString() + ' registro(s)';
 
   if (!filtered.length) {
     tbody.innerHTML = '';
@@ -1241,6 +1305,67 @@ function renderHistorial() {
 function cambiarPagHist(delta) {
   _histPage = Math.max(0, _histPage + delta);
   renderHistorial();
+}
+
+function imprimirHistorial() {
+  const filtered = _histGetFiltered();
+  const desde  = document.getElementById('hist-desde')?.value  || '';
+  const hasta  = document.getElementById('hist-hasta')?.value  || '';
+  const evento = document.getElementById('hist-evento')?.value || '';
+  const filtroInfo = [
+    desde  ? 'Desde: ' + desde : '',
+    hasta  ? 'Hasta: ' + hasta : '',
+    evento ? 'Evento: ' + evento : '',
+    _histFiltro !== 'todos' ? 'Estado: ' + (_histFiltro === 'ok' ? 'Enviados' : 'Con error') : ''
+  ].filter(Boolean).join(' · ') || 'Sin filtros adicionales';
+
+  const rows = filtered.map((e, i) => {
+    const fecha = e.ts ? new Date(e.ts).toLocaleString('es-PE') : '—';
+    const estado = e.ok ? '✓ Enviado' : '✗ Error';
+    const color  = e.ok ? '#1a7a4a' : '#c0392b';
+    return `<tr style="background:${i % 2 === 0 ? '#f9f9f9' : '#fff'}">
+      <td style="padding:6px 8px;border:1px solid #ddd;font-size:12px;white-space:nowrap">${fecha}</td>
+      <td style="padding:6px 8px;border:1px solid #ddd;font-size:12px">${e.n || '—'}</td>
+      <td style="padding:6px 8px;border:1px solid #ddd;font-size:12px">${e.e || '—'}</td>
+      <td style="padding:6px 8px;border:1px solid #ddd;font-size:12px">${e.asunto || '—'}</td>
+      <td style="padding:6px 8px;border:1px solid #ddd;font-size:12px;text-align:center;color:${color};font-weight:600">${estado}</td>
+    </tr>`;
+  }).join('');
+
+  const w = window.open('', '_blank', 'width=950,height=720');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"/>
+  <title>Historial de correos — Merlin Events</title>
+  <style>
+    body{font-family:Arial,sans-serif;margin:24px;color:#222}
+    h1{font-size:20px;margin-bottom:4px;color:#1a3a6b}
+    .logo{font-size:24px;font-weight:800;color:#1a3a6b;margin-bottom:8px}
+    .meta{font-size:12px;color:#666;margin-bottom:20px;padding-bottom:12px;border-bottom:2px solid #1a3a6b}
+    table{width:100%;border-collapse:collapse}
+    th{background:#1a3a6b;color:#fff;padding:8px 10px;font-size:12px;text-align:left;border:1px solid #ddd}
+    tfoot td{background:#f0f0f0;font-weight:700;font-size:12px;padding:6px 8px;border:1px solid #ddd}
+    @media print{.no-print{display:none}}
+  </style></head><body>
+  <div class="no-print" style="margin-bottom:16px">
+    <button onclick="window.print()" style="background:#1a3a6b;color:#fff;border:none;padding:8px 18px;border-radius:7px;cursor:pointer;font-size:13px">🖨 Imprimir / Guardar PDF</button>
+    <button onclick="window.close()" style="background:#eee;color:#333;border:none;padding:8px 16px;border-radius:7px;cursor:pointer;font-size:13px;margin-left:8px">Cerrar</button>
+  </div>
+  <div class="logo">merlin.</div>
+  <h1>Historial de correos enviados</h1>
+  <div class="meta">
+    Generado: ${new Date().toLocaleString('es-PE')} &nbsp;·&nbsp; ${filtroInfo} &nbsp;·&nbsp; <strong>${filtered.length.toLocaleString()} registro(s)</strong>
+  </div>
+  <table>
+    <thead><tr>
+      <th>Fecha / Hora</th><th>Destinatario</th><th>Email</th><th>Asunto</th><th>Estado</th>
+    </tr></thead>
+    <tbody>${rows || '<tr><td colspan="5" style="text-align:center;padding:20px;color:#999">Sin registros</td></tr>'}</tbody>
+    <tfoot><tr>
+      <td colspan="4">Total mostrado</td>
+      <td>${filtered.length.toLocaleString()} registro(s)</td>
+    </tfoot>
+  </table>
+  </body></html>`);
+  w.document.close();
 }
 </script>
 </body>
