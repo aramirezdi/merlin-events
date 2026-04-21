@@ -240,6 +240,7 @@
     <button class="tab-btn active" onclick="showTab('tab-eventos')">Eventos / Programas</button>
     <button class="tab-btn" onclick="showTab('tab-registros')">Registrados</button>
     <button class="tab-btn" onclick="showTab('tab-correos')">Envío de Correos</button>
+    <button class="tab-btn" onclick="showTab('tab-historial')">Historial de Correos</button>
   </div>
 
   <!-- ════════════════════════════════════════
@@ -433,6 +434,74 @@
     </div>
   </div>
 
+  <!-- ════════════════════════════════════════
+       TAB 4 — HISTORIAL DE CORREOS
+  ═════════════════════════════════════════ -->
+  <div id="tab-historial" class="tab-panel">
+
+    <!-- Estadísticas -->
+    <div class="panel-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:1.25rem">
+        <h3 style="margin:0">📊 Estadísticas de envíos</h3>
+        <button class="btn btn-ghost btn-sm" onclick="cargarHistorial()">↻ Actualizar</button>
+      </div>
+      <div id="hist-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1rem">
+        <div style="text-align:center;padding:1rem;background:var(--off);border-radius:10px">
+          <div id="hs-total" style="font-size:2rem;font-weight:800;color:var(--blue)">—</div>
+          <div style="font-size:.78rem;color:var(--muted);font-weight:600">TOTAL</div>
+        </div>
+        <div style="text-align:center;padding:1rem;background:#e8f7ef;border-radius:10px">
+          <div id="hs-ok" style="font-size:2rem;font-weight:800;color:var(--green)">—</div>
+          <div style="font-size:.78rem;color:var(--muted);font-weight:600">ENVIADOS</div>
+        </div>
+        <div style="text-align:center;padding:1rem;background:#fdecea;border-radius:10px">
+          <div id="hs-err" style="font-size:2rem;font-weight:800;color:var(--red)">—</div>
+          <div style="font-size:.78rem;color:var(--muted);font-weight:600">ERRORES</div>
+        </div>
+        <div style="text-align:center;padding:1rem;background:#fff3ea;border-radius:10px">
+          <div id="hs-pct" style="font-size:2rem;font-weight:800;color:var(--orange)">—</div>
+          <div style="font-size:.78rem;color:var(--muted);font-weight:600">TASA ÉXITO</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabla historial -->
+    <div class="panel-card">
+      <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-bottom:1rem">
+        <h3 style="margin:0">📋 Registros de envío</h3>
+        <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+          <button class="btn btn-sm btn-ghost" id="hf-todos"    onclick="filtrarHistorial('todos')"   style="border:1.5px solid var(--border)">Todos</button>
+          <button class="btn btn-sm btn-green" id="hf-enviados" onclick="filtrarHistorial('ok')">Enviados</button>
+          <button class="btn btn-sm btn-red"   id="hf-errores"  onclick="filtrarHistorial('err')">Con error</button>
+        </div>
+        <input type="text" id="hist-search" placeholder="Buscar por nombre o email…"
+          style="flex:1;min-width:180px;max-width:280px;border:1.5px solid var(--border);border-radius:9px;padding:.5rem .85rem;font-size:.85rem;outline:none"
+          oninput="renderHistorial()">
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Destinatario</th>
+              <th>Email</th>
+              <th>Asunto</th>
+              <th>Estado</th>
+              <th>Detalle</th>
+            </tr>
+          </thead>
+          <tbody id="hist-tbody"></tbody>
+        </table>
+      </div>
+      <p id="hist-empty" class="empty-state" style="display:none">No hay registros aún.</p>
+      <div id="hist-pag" style="display:none;margin-top:.75rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" id="hbtn-prev" onclick="cambiarPagHist(-1)">← Anterior</button>
+        <span id="hpag-info" class="text-muted" style="font-size:.82rem"></span>
+        <button class="btn btn-ghost btn-sm" id="hbtn-next" onclick="cambiarPagHist(1)">Siguiente →</button>
+      </div>
+    </div>
+  </div>
+
 </div><!-- /s-main -->
 
 <!-- ── MODAL: ENLACE DE REGISTRO ── -->
@@ -482,6 +551,7 @@ function showTab(id) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   event.target.classList.add('active');
+  if (id === 'tab-historial' && !_historialData.length) cargarHistorial();
 }
 
 // ── TOAST ──
@@ -1062,6 +1132,116 @@ async function enviarMasivo() {
 document.querySelectorAll('.modal-bg').forEach(bg => {
   bg.addEventListener('click', e => { if (e.target === bg) bg.classList.remove('open'); });
 });
+
+// ═══════════════════════════════════════════════
+//  HISTORIAL DE CORREOS
+// ═══════════════════════════════════════════════
+let _historialData = [], _histFiltro = 'todos', _histPage = 0;
+const HIST_PAGE_SIZE = 50;
+
+async function cargarHistorial() {
+  document.getElementById('hist-tbody').innerHTML =
+    '<tr><td colspan="6" class="empty-state">Cargando…</td></tr>';
+  document.getElementById('hist-empty').style.display = 'none';
+
+  try {
+    const r = await fetch('/api/email-history');
+    const d = await r.json();
+    if (d.error) { toast('Error al cargar historial: ' + d.error); return; }
+    // El endpoint devuelve { entries: [...] } o directamente el array
+    _historialData = (Array.isArray(d) ? d : d.entries || [])
+      .slice().reverse(); // más recientes primero
+  } catch (e) {
+    toast('No se pudo conectar con MDT Agent');
+    return;
+  }
+
+  actualizarEstadisticas();
+  _histPage = 0;
+  renderHistorial();
+}
+
+function actualizarEstadisticas() {
+  const total = _historialData.length;
+  const ok    = _historialData.filter(e => e.ok).length;
+  const err   = total - ok;
+  const pct   = total ? Math.round(ok / total * 100) : 0;
+  document.getElementById('hs-total').textContent = total.toLocaleString();
+  document.getElementById('hs-ok').textContent    = ok.toLocaleString();
+  document.getElementById('hs-err').textContent   = err.toLocaleString();
+  document.getElementById('hs-pct').textContent   = pct + '%';
+}
+
+function filtrarHistorial(f) {
+  _histFiltro = f;
+  _histPage   = 0;
+  ['todos','enviados','errores'].forEach(id => {
+    document.getElementById('hf-' + id)?.classList.remove('btn-blue','btn-green','btn-red','btn-ghost');
+  });
+  if (f === 'todos')   document.getElementById('hf-todos').style.fontWeight    = '800';
+  if (f === 'ok')      document.getElementById('hf-enviados').style.background = 'var(--green)';
+  if (f === 'err')     document.getElementById('hf-errores').style.background  = 'var(--red)';
+  renderHistorial();
+}
+
+function renderHistorial() {
+  const q = document.getElementById('hist-search').value.toLowerCase();
+  const tbody  = document.getElementById('hist-tbody');
+  const empty  = document.getElementById('hist-empty');
+  const pagDiv = document.getElementById('hist-pag');
+
+  let filtered = _historialData.filter(e => {
+    if (_histFiltro === 'ok'  && !e.ok)  return false;
+    if (_histFiltro === 'err' &&  e.ok)  return false;
+    if (q && !(
+      (e.n || '').toLowerCase().includes(q) ||
+      (e.e || '').toLowerCase().includes(q) ||
+      (e.asunto || '').toLowerCase().includes(q)
+    )) return false;
+    return true;
+  });
+
+  if (!filtered.length) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    pagDiv.style.display = 'none';
+    return;
+  }
+  empty.style.display = 'none';
+
+  const totalPages = Math.ceil(filtered.length / HIST_PAGE_SIZE);
+  if (_histPage >= totalPages) _histPage = totalPages - 1;
+  const page = filtered.slice(_histPage * HIST_PAGE_SIZE, (_histPage + 1) * HIST_PAGE_SIZE);
+
+  tbody.innerHTML = '';
+  page.forEach(e => {
+    const fecha = e.ts ? new Date(e.ts).toLocaleString('es-PE') : '—';
+    const badge = e.ok
+      ? '<span class="badge badge-green">Enviado</span>'
+      : '<span class="badge badge-red">Error</span>';
+    const det = !e.ok && e.det ? `<span class="text-muted" style="font-size:.75rem">${e.det.slice(0,60)}</span>` : '—';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="white-space:nowrap">${fecha}</td>
+      <td>${e.n || '—'}</td>
+      <td>${e.e || '—'}</td>
+      <td>${e.asunto || '—'}</td>
+      <td>${badge}</td>
+      <td>${det}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  pagDiv.style.display = totalPages > 1 ? 'flex' : 'none';
+  document.getElementById('hpag-info').textContent =
+    `Página ${_histPage + 1} de ${totalPages} (${filtered.length.toLocaleString()} registros)`;
+  document.getElementById('hbtn-prev').disabled = _histPage === 0;
+  document.getElementById('hbtn-next').disabled = _histPage >= totalPages - 1;
+}
+
+function cambiarPagHist(delta) {
+  _histPage = Math.max(0, _histPage + delta);
+  renderHistorial();
+}
 </script>
 </body>
 </html>

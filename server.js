@@ -149,6 +149,23 @@ app.post('/api/send-bulk-email', async (req, res) => {
   res.json({ ok, err, results });
 });
 
+// ── GET /api/email-history — historial desde MDT Agent ──
+app.get('/api/email-history', async (req, res) => {
+  const token = await mdtToken();
+  if (!token) return res.status(503).json({ error: 'MDT Agent no disponible' });
+  try {
+    const r = await fetch(`${MDT_URL}/api/history-load`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Session-Token': token },
+      body:    JSON.stringify({})
+    });
+    const d = await r.json();
+    res.json(d);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Rutas de páginas ──
 app.get('/',           (req, res) => res.sendFile(path.join(__dirname, 'hub.html')));
 app.get('/registro',   (req, res) => res.sendFile(path.join(__dirname, 'registro.html')));
