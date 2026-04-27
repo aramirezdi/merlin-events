@@ -687,6 +687,11 @@ async function loadEventos() {
   }
   eventos = data || [];
 
+  if (!eventos.length) {
+    errEl.textContent = '⚠ Supabase devolvió 0 eventos. Probablemente hay una política RLS que oculta eventos cerrados. Ejecuta en Supabase SQL: CREATE POLICY "events_admin_read" ON events FOR SELECT USING (true);';
+    errEl.style.display = '';
+  }
+
   // Cargar conteos en paralelo
   _evCounts = {};
   await Promise.all(eventos.map(async ev => {
