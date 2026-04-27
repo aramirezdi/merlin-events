@@ -216,6 +216,14 @@
 
     .empty-state { text-align:center; padding:3rem; color:var(--muted); font-size:.9rem; }
 
+    /* ── EV FILTER BAR ── */
+    .ev-filter-bar { display:flex; gap:.4rem; margin-bottom:.75rem; flex-wrap:wrap; }
+    .ev-filter-bar .btn { border-radius:99px; }
+    .event-stats { display:flex; gap:.5rem; margin-top:.25rem; }
+    .event-stats span { font-size:.72rem; color:var(--muted); font-weight:600; }
+    .event-stats .es-present { color:var(--green); }
+    .badge-past { background:var(--muted) !important; }
+
     .copyright-bar { text-align:center; font-size:.68rem; color:rgba(255,255,255,.75); padding:.55rem 1rem; background:var(--blue3); letter-spacing:.05em; margin-top:2rem; }
 
     @media(max-width:600px){
@@ -294,6 +302,11 @@
 
       <div class="card">
         <h3>&#128197; Eventos existentes</h3>
+        <div class="ev-filter-bar">
+          <button class="btn btn-sm btn-blue"    id="efbtn-proximos"  onclick="setEvFilter('proximos')">&#128197; Pr&oacute;ximos</button>
+          <button class="btn btn-sm btn-outline" id="efbtn-historial" onclick="setEvFilter('historial')">&#128336; Historial</button>
+          <button class="btn btn-sm btn-outline" id="efbtn-todos"     onclick="setEvFilter('todos')">&#8801; Todos</button>
+        </div>
         <div id="events-list"><div class="empty-state">No hay eventos creados aún.</div></div>
       </div>
     </div>
@@ -406,6 +419,7 @@ const SUPABASE_URL = 'https://uceswdscummpokmquecs.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjZXN3ZHNjdW1tcG9rbXF1ZWNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NjQyNzEsImV4cCI6MjA5MTM0MDI3MX0.omidUnKS78E78sng3U0ozEUme3ARWcUDWlKSm59zvzQ';
 
 let db, currentEvent = null, participants = [], editingId = null;
+let evFilter = 'proximos', allEvents = [], evStats = {};
 
 /* ── AUTH ── */
 function checkAuth(){
@@ -437,23 +451,73 @@ function switchTab(tab){
 async function loadEvents(){
   const { data, error } = await db.from('events').select('*').order('created_at',{ascending:false});
   if(error){ document.getElementById('events-list').innerHTML='<div class="empty-state" style="color:var(--red)">Error Supabase: '+error.message+'</div>'; return; }
-  renderEvents(data || []);
+  allEvents = data || [];
+  evStats = {};
+  if(evFilter === 'historial') await loadEvStats();
+  renderEvents(allEvents);
+}
+
+async function loadEvStats(){
+  const today = new Date().toISOString().slice(0,10);
+  const pastIds = allEvents.filter(e => e.fecha && e.fecha < today).map(e => e.id);
+  if(!pastIds.length) return;
+  const [pRes, aRes] = await Promise.all([
+    db.from('participants').select('event_id').in('event_id', pastIds),
+    db.from('attendance').select('event_id').eq('present', true).in('event_id', pastIds),
+  ]);
+  evStats = {};
+  (pRes.data || []).forEach(p => { evStats[p.event_id] = evStats[p.event_id] || {total:0,present:0}; evStats[p.event_id].total++; });
+  (aRes.data || []).forEach(a => { evStats[a.event_id] = evStats[a.event_id] || {total:0,present:0}; evStats[a.event_id].present++; });
+}
+
+async function setEvFilter(f){
+  evFilter = f;
+  ['proximos','historial','todos'].forEach(k => {
+    const b = document.getElementById('efbtn-'+k);
+    b.className = 'btn btn-sm ' + (k===f ? 'btn-blue' : 'btn-outline');
+  });
+  if(f === 'historial' && !Object.keys(evStats).length) await loadEvStats();
+  renderEvents(allEvents);
 }
 
 function renderEvents(events){
+  const today = new Date().toISOString().slice(0,10);
+  let filtered = events;
+  if(evFilter === 'proximos')  filtered = events.filter(e => !e.fecha || e.fecha >= today);
+  if(evFilter === 'historial') filtered = events.filter(e => e.fecha && e.fecha < today);
+
   const el = document.getElementById('events-list');
-  if(!events.length){ el.innerHTML='<div class="empty-state">No hay eventos creados aún.</div>'; return; }
-  el.innerHTML = events.map(e => `
+  if(!filtered.length){
+    const msg = evFilter==='historial' ? 'No hay eventos pasados en el historial.'
+              : evFilter==='proximos'  ? 'No hay eventos pr&oacute;ximos. Cambia a <strong>Historial</strong> para ver eventos anteriores.'
+              : 'No hay eventos creados a&uacute;n.';
+    el.innerHTML = `<div class="empty-state">${msg}</div>`; return;
+  }
+  el.innerHTML = filtered.map(e => {
+    const isPast = e.fecha && e.fecha < today;
+    const s = evStats[e.id];
+    const pct = s && s.total ? Math.round(s.present/s.total*100) : 0;
+    const statsHtml = isPast && s ? `<div class="event-stats">
+      <span>&#128101; ${s.total}</span>
+      <span class="es-present">&#10003; ${s.present} presentes</span>
+      <span>&#128202; ${pct}%</span>
+    </div>` : '';
+    const badge = isPast
+      ? `<span class="event-badge badge-past">Historial</span>`
+      : `<span class="event-badge">Pr&oacute;ximo</span>`;
+    return `
     <div class="event-item ${currentEvent?.id===e.id?'selected':''}" onclick="selectEvent(${JSON.stringify(e).replace(/"/g,'&quot;')})">
       <div class="event-item-info">
         <h4>${e.nombre}</h4>
         <p>${[e.fecha,e.lugar,e.descripcion].filter(Boolean).join(' · ')}</p>
+        ${statsHtml}
       </div>
       <div style="display:flex;align-items:center;gap:.5rem">
-        <span class="event-badge">Seleccionar</span>
+        ${badge}
         <button class="btn btn-icon del" onclick="deleteEvent('${e.id}',event)" title="Eliminar">&#128465;</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 async function crearEvento(){

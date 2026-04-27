@@ -315,7 +315,24 @@
 
     <!-- Lista de eventos -->
     <div class="panel-card">
-      <h3>📋 Eventos y programas</h3>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:.75rem">
+        <h3 style="margin:0">📋 Eventos y programas</h3>
+        <div style="display:flex;gap:.4rem">
+          <button class="btn btn-sm btn-blue"    id="evf-todos"    onclick="setEvAdminFilter('todos')">≡ Todos</button>
+          <button class="btn btn-sm btn-outline" id="evf-proximos" onclick="setEvAdminFilter('proximos')">📅 Próximos</button>
+          <button class="btn btn-sm btn-outline" id="evf-pasados"  onclick="setEvAdminFilter('pasados')">🕐 Historial</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:.75rem">
+        <input type="text" id="ev-search" placeholder="🔍 Buscar por nombre…"
+          oninput="renderEventosAdmin()"
+          style="flex:1;min-width:180px;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .8rem;font-size:.85rem;outline:none">
+        <input type="date" id="ev-desde" onchange="renderEventosAdmin()"
+          style="border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.83rem;outline:none" title="Desde">
+        <input type="date" id="ev-hasta" onchange="renderEventosAdmin()"
+          style="border:1.5px solid var(--border);border-radius:8px;padding:.4rem .7rem;font-size:.83rem;outline:none" title="Hasta">
+      </div>
+      <div id="eventos-error" style="display:none;color:var(--red);font-size:.83rem;padding:.5rem 0"></div>
       <div class="table-wrap">
         <table id="eventos-table">
           <thead>
@@ -601,40 +618,83 @@ async function init() {
 //  EVENTOS
 // ═══════════════════════════════════════════════
 let _loadingEventos = false;
-async function loadEventos() {
-  if (_loadingEventos) return;
-  _loadingEventos = true;
-  const { data } = await db.from('events').select('*').order('created_at', { ascending: false });
-  eventos = data || [];
+let _evAdminFilter = 'todos';
+let _evCounts = {};
 
+function setEvAdminFilter(f) {
+  _evAdminFilter = f;
+  ['todos','proximos','pasados'].forEach(k => {
+    const b = document.getElementById('evf-' + k);
+    if (b) b.className = 'btn btn-sm ' + (k === f ? 'btn-blue' : 'btn-outline');
+  });
+  renderEventosAdmin();
+}
+
+function renderEventosAdmin() {
+  const today = new Date().toISOString().slice(0,10);
+  const q = (document.getElementById('ev-search')?.value || '').toLowerCase().trim();
+  const desde = document.getElementById('ev-desde')?.value || '';
+  const hasta = document.getElementById('ev-hasta')?.value || '';
   const tbody = document.getElementById('eventos-tbody');
   tbody.innerHTML = '';
 
-  if (!eventos.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="empty-state">No hay eventos creados aún.</td></tr>`;
-  } else {
-    for (const ev of eventos) {
-      // Contar participantes (tabla principal)
-      const { count } = await db.from('participants').select('id', { count: 'exact', head: true }).eq('event_id', ev.id);
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td><b>${ev.nombre}</b>${ev.descripcion ? `<br><span class="text-muted">${ev.descripcion.slice(0,60)}</span>` : ''}</td>
-        <td><span class="badge ${ev.tipo === 'programa' ? 'badge-blue' : 'badge-orange'}">${ev.tipo === 'programa' ? 'Programa' : 'Evento'}</span></td>
-        <td>${ev.fecha || '—'}</td>
-        <td><span class="badge ${ev.registration_open !== false ? 'badge-green' : 'badge-red'}">${ev.registration_open !== false ? 'Abierto' : 'Cerrado'}</span></td>
-        <td><b>${count || 0}</b></td>
-        <td>
-          <div style="display:flex;gap:.4rem;flex-wrap:wrap">
-            <button class="btn btn-blue btn-sm" onclick="verEnlace('${ev.id}')">🔗 Enlace</button>
-            <button class="btn btn-ghost btn-sm" onclick="toggleRegistro('${ev.id}', ${ev.registration_open !== false})">${ev.registration_open !== false ? 'Cerrar registro' : 'Abrir registro'}</button>
-            <button class="btn btn-red btn-sm" onclick="eliminarEvento('${ev.id}')">🗑</button>
-          </div>
-        </td>`;
-      tbody.appendChild(tr);
-    }
-  }
+  let filtered = eventos;
+  if (_evAdminFilter === 'proximos') filtered = filtered.filter(e => !e.fecha || e.fecha >= today);
+  if (_evAdminFilter === 'pasados')  filtered = filtered.filter(e => e.fecha && e.fecha < today);
+  if (q)     filtered = filtered.filter(e => (e.nombre||'').toLowerCase().includes(q));
+  if (desde) filtered = filtered.filter(e => e.fecha && e.fecha >= desde);
+  if (hasta) filtered = filtered.filter(e => e.fecha && e.fecha <= hasta);
 
-  // Poblar selects de otros tabs
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty-state">No hay eventos que coincidan.</td></tr>`;
+    return;
+  }
+  for (const ev of filtered) {
+    const isPast = ev.fecha && ev.fecha < today;
+    const count = _evCounts[ev.id] ?? '…';
+    const tr = document.createElement('tr');
+    if (isPast) tr.style.opacity = '.75';
+    tr.innerHTML = `
+      <td><b>${ev.nombre}</b>${isPast ? ' <span style="font-size:.7rem;background:#e0e0e0;color:#555;border-radius:8px;padding:1px 6px;vertical-align:middle">pasado</span>' : ''}
+        ${ev.descripcion ? `<br><span class="text-muted">${ev.descripcion.slice(0,60)}</span>` : ''}</td>
+      <td><span class="badge ${ev.tipo === 'programa' ? 'badge-blue' : 'badge-orange'}">${ev.tipo === 'programa' ? 'Programa' : 'Evento'}</span></td>
+      <td style="white-space:nowrap">${ev.fecha || '—'}</td>
+      <td><span class="badge ${ev.registration_open !== false ? 'badge-green' : 'badge-red'}">${ev.registration_open !== false ? 'Abierto' : 'Cerrado'}</span></td>
+      <td><b>${count}</b></td>
+      <td>
+        <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+          <button class="btn btn-blue btn-sm" onclick="verEnlace('${ev.id}')">🔗 Enlace</button>
+          <button class="btn btn-ghost btn-sm" onclick="toggleRegistro('${ev.id}', ${ev.registration_open !== false})">${ev.registration_open !== false ? 'Cerrar' : 'Abrir'}</button>
+          <button class="btn btn-red btn-sm" onclick="eliminarEvento('${ev.id}')">🗑</button>
+        </div>
+      </td>`;
+    tbody.appendChild(tr);
+  }
+}
+
+async function loadEventos() {
+  if (_loadingEventos) return;
+  _loadingEventos = true;
+  const errEl = document.getElementById('eventos-error');
+  errEl.style.display = 'none';
+
+  const { data, error } = await db.from('events').select('*').order('fecha', { ascending: false });
+  if (error) {
+    errEl.textContent = '⚠ Error al cargar eventos: ' + error.message;
+    errEl.style.display = '';
+    _loadingEventos = false;
+    return;
+  }
+  eventos = data || [];
+
+  // Cargar conteos en paralelo
+  _evCounts = {};
+  await Promise.all(eventos.map(async ev => {
+    const { count } = await db.from('participants').select('id', { count: 'exact', head: true }).eq('event_id', ev.id);
+    _evCounts[ev.id] = count || 0;
+  }));
+
+  renderEventosAdmin();
   poblarEventoSelects();
   _loadingEventos = false;
 }
