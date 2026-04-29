@@ -238,7 +238,7 @@
 <div id="s-auth">
   <div class="auth-box">
     <div class="logo">
-      <img src="merlin-logo%20de%20color%20fondo%20transparente.png" height="48" style="max-width:200px">
+      <img src="merlin-logo-color-v2.png" style="height:72px;display:block">
     </div>
     <h2>Panel de Asistencia</h2>
     <p>Merlin Events &mdash; Acceso para organizadores</p>
@@ -252,7 +252,7 @@
 <div id="s-main">
   <div class="topbar no-print">
     <div class="topbar-left">
-      <img src="merlindata_blanco_sin%20fondo.png" height="30">
+      <img src="merlin-logo-white-v2.png" height="40">
       <div>
         <div class="topbar h1" style="font-size:.95rem;font-weight:700">Asistencia</div>
         <div class="event-name" id="topbar-event">Sin evento seleccionado</div>
@@ -804,7 +804,7 @@ function printReport(){
   const rows = [...participants].sort((a,b)=>a.apellido.localeCompare(b.apellido));
   document.getElementById('print-sheet').innerHTML = `
     <div class="print-header">
-      <img src="merlin-logo%20de%20color%20fondo%20transparente.png" height="36" style="max-width:160px">
+      <img src="merlin-logo-dark-v2.png" height="44" style="max-width:180px">
       <div>
         <div class="print-title">${ev.nombre}</div>
         <div class="print-sub">${[ev.fecha,ev.lugar,ev.descripcion].filter(Boolean).join(' · ')} &nbsp;|&nbsp; Impreso: ${new Date().toLocaleString('es-CO')}</div>
